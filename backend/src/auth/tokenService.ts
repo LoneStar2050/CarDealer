@@ -1,5 +1,12 @@
 import jwt from 'jsonwebtoken';
-import type { User } from './user.js';
+import { UnauthorizedError } from '../errors/httpErrors.js';
+import type { Role, User } from './user.js';
+
+/** The identity carried by a verified token. */
+export interface AuthenticatedUser {
+  id: string;
+  role: Role;
+}
 
 /** Settings for signing authentication tokens (from JWT_SECRET / JWT_EXPIRES_IN). */
 export interface JwtConfig {
@@ -43,5 +50,26 @@ export class TokenService {
       expiresIn: this.expiresIn,
       algorithm: 'HS256',
     });
+  }
+
+  /**
+   * Verifies a token's signature and expiry and returns who it belongs to.
+   * Throws an UnauthorizedError (401) for any invalid or expired token.
+   */
+  verify(token: string): AuthenticatedUser {
+    let claims: string | jwt.JwtPayload;
+    try {
+      claims = jwt.verify(token, this.secret, { algorithms: ['HS256'] });
+    } catch {
+      throw new UnauthorizedError('Invalid or expired token');
+    }
+    if (
+      typeof claims === 'string' ||
+      typeof claims.sub !== 'string' ||
+      (claims['role'] !== 'user' && claims['role'] !== 'admin')
+    ) {
+      throw new UnauthorizedError('Invalid or expired token');
+    }
+    return { id: claims.sub, role: claims['role'] };
   }
 }

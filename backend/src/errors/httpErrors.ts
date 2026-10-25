@@ -26,6 +26,20 @@ export class UnauthorizedError extends HttpError {
   }
 }
 
+/** The user is authenticated but not allowed to do this (403). */
+export class ForbiddenError extends HttpError {
+  constructor(message: string) {
+    super(403, message);
+  }
+}
+
+/** The requested resource does not exist (404). */
+export class NotFoundError extends HttpError {
+  constructor(message: string) {
+    super(404, message);
+  }
+}
+
 /** The request conflicts with existing data, e.g. a duplicate email (409). */
 export class ConflictError extends HttpError {
   constructor(message: string) {
