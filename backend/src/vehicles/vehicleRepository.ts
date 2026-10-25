@@ -1,11 +1,25 @@
 import type { Queryable } from '../db/transaction.js';
 import { ConflictError, NotFoundError } from '../errors/httpErrors.js';
 import { ratingSummarySql, toAverageRating } from '../reviews/ratingSql.js';
-import type { Vehicle, VehicleInput, VehicleSearch } from './vehicle.js';
+import type { Vehicle, VehicleInput, VehicleSearch, VehicleSort } from './vehicle.js';
 
 /** Columns returned for every vehicle query, read from the CTE "v" and its ratings "r". */
-const COLUMNS = `v.id, v.make, v.model, v.category, v.price, v.quantity,
+const COLUMNS = `v.id, v.make, v.model, v.category, v.price, v.quantity, v.created_at,
   r.average_rating, r.review_count`;
+
+/** The listing order: oldest first, with the id as a stable tiebreaker. */
+const LISTING_ORDER = 'v.created_at, v.id';
+
+/** ORDER BY clauses for each allowed sort. Only these fixed strings ever reach the SQL. */
+const ORDER_BY: Record<VehicleSort, string> = {
+  price_asc: `v.price ASC, ${LISTING_ORDER}`,
+  price_desc: `v.price DESC, ${LISTING_ORDER}`,
+  newest: 'v.created_at DESC, v.id',
+  rating: `r.average_rating DESC NULLS LAST, r.review_count DESC, ${LISTING_ORDER}`,
+};
+
+/** Escapes LIKE wildcards so user text matches literally (backslash is the default escape). */
+const escapeLike = (text: string) => text.replace(/[\\%_]/g, '\\$&');
 
 interface VehicleRow {
   id: string;
@@ -14,6 +28,7 @@ interface VehicleRow {
   category: string;
   price: string; // PostgreSQL NUMERIC arrives as a string
   quantity: number;
+  created_at: Date;
   average_rating: string | null;
   review_count: number;
 }
@@ -28,6 +43,7 @@ function toVehicle(row: VehicleRow): Vehicle {
     quantity: row.quantity,
     averageRating: toAverageRating(row.average_rating),
     reviewCount: row.review_count,
+    createdAt: row.created_at.toISOString(),
   };
 }
 
@@ -64,7 +80,7 @@ export class VehicleRepository {
   }
 
   async findAll(): Promise<Vehicle[]> {
-    return this.query('SELECT * FROM vehicles', [], 'ORDER BY v.created_at, v.id');
+    return this.query('SELECT * FROM vehicles', [], `ORDER BY ${LISTING_ORDER}`);
   }
 
   async exists(id: string): Promise<boolean> {
@@ -80,16 +96,18 @@ export class VehicleRepository {
       conditions.push(sql(`$${values.length}`));
     };
 
-    if (filters.make !== undefined) add((p) => `make ILIKE '%' || ${p} || '%'`, filters.make);
-    if (filters.model !== undefined) add((p) => `model ILIKE '%' || ${p} || '%'`, filters.model);
-    if (filters.category !== undefined) {
-      add((p) => `category ILIKE '%' || ${p} || '%'`, filters.category);
-    }
+    const contains = (column: string) => (p: string) => `${column} ILIKE '%' || ${p} || '%'`;
+    if (filters.make !== undefined) add(contains('make'), escapeLike(filters.make));
+    if (filters.model !== undefined) add(contains('model'), escapeLike(filters.model));
+    if (filters.category !== undefined) add(contains('category'), escapeLike(filters.category));
     if (filters.minPrice !== undefined) add((p) => `price >= ${p}`, filters.minPrice);
     if (filters.maxPrice !== undefined) add((p) => `price <= ${p}`, filters.maxPrice);
+    if (filters.availability === 'in_stock') conditions.push('quantity > 0');
+    if (filters.availability === 'out_of_stock') conditions.push('quantity = 0');
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    return this.query(`SELECT * FROM vehicles ${where}`, values, 'ORDER BY v.created_at, v.id');
+    const orderBy = filters.sort ? ORDER_BY[filters.sort] : LISTING_ORDER;
+    return this.query(`SELECT * FROM vehicles ${where}`, values, `ORDER BY ${orderBy}`);
   }
 
   /** Updates only the given fields. Throws NotFoundError if there is no such vehicle. */

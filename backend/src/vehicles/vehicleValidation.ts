@@ -1,6 +1,6 @@
 import { ValidationError } from '../errors/httpErrors.js';
 import { requireUuid } from '../validation/uuid.js';
-import type { VehicleInput, VehicleSearch } from './vehicle.js';
+import { AVAILABILITIES, VEHICLE_SORTS, type VehicleInput, type VehicleSearch } from './vehicle.js';
 
 type Fields = Record<string, unknown>;
 
@@ -58,6 +58,15 @@ function optionalPrice(value: unknown, name: string): number | undefined {
   return price;
 }
 
+/** An optional value that must be one of `allowed`; empty counts as absent. */
+function optionalChoice<T extends string>(value: unknown, allowed: readonly T[], name: string): T | undefined {
+  if (value === undefined || value === '') return undefined;
+  if (typeof value !== 'string' || !(allowed as readonly string[]).includes(value)) {
+    throw new ValidationError(`${name} must be one of: ${allowed.join(', ')}`);
+  }
+  return value as T;
+}
+
 /** Validates search query parameters. */
 export function validateSearch(query: Fields): VehicleSearch {
   const search: VehicleSearch = {};
@@ -66,6 +75,8 @@ export function validateSearch(query: Fields): VehicleSearch {
   const category = optionalText(query['category']);
   const minPrice = optionalPrice(query['minPrice'], 'minPrice');
   const maxPrice = optionalPrice(query['maxPrice'], 'maxPrice');
+  const availability = optionalChoice(query['availability'], AVAILABILITIES, 'availability');
+  const sort = optionalChoice(query['sort'], VEHICLE_SORTS, 'sort');
 
   if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
     throw new ValidationError('minPrice must not be greater than maxPrice');
@@ -75,6 +86,8 @@ export function validateSearch(query: Fields): VehicleSearch {
   if (category !== undefined) search.category = category;
   if (minPrice !== undefined) search.minPrice = minPrice;
   if (maxPrice !== undefined) search.maxPrice = maxPrice;
+  if (availability !== undefined) search.availability = availability;
+  if (sort !== undefined) search.sort = sort;
   return search;
 }
 
