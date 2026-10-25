@@ -2,23 +2,40 @@
 
 ## Summary
 
-All results below are from one verification run on 2026-10-25 at 20:03 IST (Node.js 26.12.1), after adding Favorites, Compare Cars, Vehicle Details and Admin Inventory Statistics.
+Results from the verification run on **2026-10-26** (Node.js 26.12.1, PostgreSQL 17.11, Google Chrome 155), after adding reviews and ratings, purchase history, invoices, advanced vehicle discovery, admin analytics and the comparison improvements, and after the fix commit `046c017`. Unit tests, type checks and the build ran at 03:00 IST; the final end-to-end run started at 03:05:00 IST.
 
 | Check | Type | Command (directory) | Result |
 |---|---|---|---|
-| Frontend tests | Automated tests | `npm test` (`frontend/`) | **5 files, 47 tests passed, 0 failed, 0 skipped** (exit 0, 4.56 s) |
-| Frontend build | Build | `npm run build` (`frontend/`) | **Passed** (exit 0): `tsc --noEmit` with no errors, then `vite build` |
-| Backend tests | Automated tests | `npm test` (`backend/`) | **5 files, 74 tests passed, 0 failed, 0 skipped** (exit 0, 23.86 s) |
-| Backend type-check | Type checking | `npm run typecheck` (`backend/`) | **Passed** (exit 0, no errors) |
-| Backend coverage | Automated tests + coverage | `npm run test:coverage` (`backend/`) | 74 passed; statements 89.27%, branches 83.97%, functions 97.01%, lines 88.98% (exit 0) |
-| Browser: existing workflows | Browser checks | Playwright script, real API + PostgreSQL | **32 checks passed** |
-| Browser: new features | Browser checks | Playwright script, real API + PostgreSQL | **23 checks passed** |
+| Backend tests | Unit + API integration tests | `npm run test:coverage` (`backend/`) | **180 / 180 passed** in 11 files, 0 failed, 0 skipped (exit 0, 62.78 s) |
+| Backend coverage | Coverage | same run | statements 93.87%, branches 89.62%, functions 98.41%, lines 93.70% |
+| Backend type check | Type checking | `npm run typecheck` (`backend/`) | **Passed** (exit 0, no errors) |
+| Frontend tests | Component tests | `npx vitest run` (`frontend/`, same as `npm test`) | **87 / 87 passed** in 10 files, 0 failed, 0 skipped (exit 0, 4.31 s) |
+| Frontend type check | Type checking | `npx tsc --noEmit` (`frontend/`) | **Passed** (exit 0, no errors) |
+| Frontend build | Build | `npm run build` (`frontend/`) | **Passed** (exit 0): `tsc --noEmit`, then `vite build` |
+| End-to-end | Browser checks | `npm test` (`e2e/`, runs `./run.sh`) | **28 passed, 0 failed** (exit 0) |
+| Lint | — | — | **Not run.** Neither `frontend/` nor `backend/` has a lint script |
 
-**Total automated tests: 121 (47 frontend + 74 backend), all passing.**
+**Total automated unit and integration tests: 267 (180 backend + 87 frontend), all passing.**
 
 - No coverage thresholds are configured, so none can fail.
 - Frontend coverage was **not measured**: no coverage provider is installed in `frontend/`.
-- **No backend code was changed** for the redesign or the new features: `git diff HEAD -- backend` is empty, there are no untracked files under `backend/`, and the last commit touching `backend/` is `ccad9ec`.
+
+## Disclosure: the two latest UI fixes have no Red-Green evidence
+
+Commit `046c017` ("fix: stop analytics overflow on phones and add a favicon") changed two things:
+
+1. `min-w-0` on the "Top-selling vehicles" card of the analytics dashboard. At 390 px the card grew to 400 px, because its table has `min-w-[360px]` and grid items default to `min-width: auto`. The page could then be scrolled sideways.
+2. A favicon (`frontend/public/favicon.svg`, linked from `index.html`). Without one, Chrome's automatic request for `/favicon.ico` returned 404 and logged "Failed to load resource" in the console.
+
+**No test was observed failing before these fixes in a Red-Green cycle.** There is no unit test for either change, because jsdom (used by the frontend tests) does not compute CSS layout and does not request favicons. Both problems were found by the end-to-end run, and the end-to-end checks are the only verification:
+
+| End-to-end run | Result |
+|---|---|
+| Before the fixes | 26 passed, 2 failed: `#analytics overflows by 26px` at 390 px; console error "Failed to load resource: the server responded with a status of 404 (Not Found)" |
+| After the `min-w-0` change | 27 passed, 1 failed: the console error remained. Logging the console message's location identified the URL as `http://localhost:5180/favicon.ico` |
+| After adding the favicon | 28 passed, 0 failed |
+
+These checks failed and then passed, but they were not written as failing tests before the fixes. So the fixes do **not** have demonstrated Red-Green evidence of the kind the rest of the history has.
 
 ## Frontend automated tests
 
@@ -27,22 +44,22 @@ Vitest 5.0.5 with React Testing Library on jsdom. UI tests render the whole app 
 | Test file › group | Tests | What it covers |
 |---|---|---|
 | `format.test.ts` › formatRupees | 4 | Rupee formatting with Indian grouping (₹15,00,000, ₹8,00,000, ₹999, ₹0) |
-| `stats.test.ts` › inventoryStats | 2 | Models, units, out-of-stock models and total value (price × quantity); zeros for an empty inventory |
-| `favorites.test.ts` › favorites storage | 2 | Only vehicle ids are stored, separately per user; empty list when nothing is stored or the stored value is corrupt or the wrong shape |
-| `App.test.tsx` › authentication | 6 | Sign-in; API error for wrong credentials; inline validation that clears when edited; password toggle; expired session (401) returns to sign-in with a message |
-| `App.test.tsx` › inventory | 4 | Hero and "Explore Inventory"; cards with category, rupee price, stock and image; load error; empty state |
-| `App.test.tsx` › search and filters | 4 | Filters sent as search query parameters; category options from the data; Clear filters; sorting by price and name |
-| `App.test.tsx` › purchasing | 3 | Enabled in stock, disabled with "Out of stock" at zero; pending state blocks a second request and stock updates; API error shown |
-| `App.test.tsx` › admin controls | 8 | Hidden from regular users; shown to admins; add (validation first, errors clear when corrected), edit, restock, delete with confirmation; backend 403 shown |
-| `features.test.tsx` › favorites | 4 | Favorite/unfavorite with button state; Favorites view and count; empty state; stored per user without any token; restored after signing in again |
-| `features.test.tsx` › compare cars | 3 | Up to three vehicles, a fourth disabled; comparison table of make, model, category, price and stock; remove and clear; at least two needed |
-| `features.test.tsx` › vehicle details | 4 | Details view with image, fields and stock; purchase from details updates stock; back to inventory; own URL (`#vehicle/<id>`) and closing via another link; opening from a `#vehicle/<id>` link; out-of-stock details disables Purchase |
-| `features.test.tsx` › admin inventory statistics | 3 | Values calculated from the loaded inventory (3 models, 16 units, 1 out of stock, ₹1,70,00,000); updated after a purchase; not shown to regular users |
-| **Total** | **47** | |
+| `stats.test.ts` › inventoryStats | 2 | Models, units, out-of-stock models and total value; zeros for an empty inventory |
+| `favorites.test.ts` › favorites storage | 2 | Only vehicle ids are stored, separately per user; empty list for missing, corrupt or wrong-shape data |
+| `App.test.tsx` › authentication | 6 | Sign-in; API error for wrong credentials; inline validation; password toggle; expired session returns to sign-in |
+| `App.test.tsx` › inventory | 4 | Hero; cards with category, rupee price, stock and image; load error; empty state |
+| `App.test.tsx` › search and filters | 4 | Filters sent to the search endpoint; category options; Clear filters; sorting by price and name |
+| `App.test.tsx` › purchasing | 3 | Enabled in stock, disabled at zero; pending state blocks a second request; API error shown |
+| `App.test.tsx` › admin controls | 8 | Hidden from regular users; add (with validation), edit, restock, delete with confirmation; backend 403 shown |
+| `features.test.tsx` | 14 | Favorites (4), compare cars (3), vehicle details with its own URL (4), admin inventory statistics (3) |
+| `reviews.test.tsx` | 9 | Rating and count on cards; loading, empty, error and loaded states of the reviews; submitting a review updates the summary and the card; rating and comment validated before sending; server rejection shown; no form after the user has reviewed |
+| `orders.test.tsx` | 10 | "My orders" link; loading, empty, error and expired-session states; orders newest first with details; a new order appears; invoice download with the user's token, and its error; quantity selection limited to the stock |
+| `discovery.test.tsx` | 6 | Newest-first and top-rated sorting (ties by review count, unrated last); availability filter sent to the API; combined filters; Clear filters resets them; an inverted price range is explained instead of searched |
+| `analytics.test.tsx` | 10 | Analytics link for admins only; figures from the API after a loading state; inclusive date filter; start after end rejected without calling the API; empty and error states; regular users see "Access denied" and nothing is requested; 403 from the server shown as access denied; expired session |
+| `compare.test.tsx` | 5 | Availability, rating and listing date with fallbacks for missing values; lowest price and best rating highlighted; Remove inside the table; closes below two vehicles; focus moves into the dialog and back to the Compare button on Escape |
+| **Total** | **87** | |
 
-The suite also passed when run in random order (`npx vitest run --sequence.shuffle`) during development; that run is not part of this report's run.
-
-Build output: 38 modules transformed; `dist/index.html` 0.43 kB, CSS 29.55 kB (6.24 kB gzip), JS 264.88 kB (79.52 kB gzip).
+Build output: `dist/index.html` 0.49 kB, CSS 32.52 kB (6.75 kB gzip), JS 288.78 kB (85.30 kB gzip).
 
 ## Backend automated tests
 
@@ -50,100 +67,141 @@ Integration tests that send real HTTP requests to the Express app with Supertest
 
 | Test file | Tests | What it covers |
 |---|---|---|
-| `tests/db/migrate.test.ts` | 8 | Schema creation, idempotent migration, unique ids, non-negative price/quantity, role check, unique email |
+| `tests/db/migrate.test.ts` | 20 | Schema and idempotent migration; vehicle and user constraints; reviews table (rating 1–5, one review per user and vehicle, foreign keys); purchases table (automatic unique order numbers, quantity > 0, total = unit price × quantity, foreign key to users) |
 | `tests/auth/register.test.ts` | 12 | Registration: 201 shape, bcrypt hashing, no password data, no self-assigned admin; 400 validation; 409 duplicate email |
-| `tests/auth/login.test.ts` | 7 | Login: JWT with verified `sub`, `role`, `exp`; no password data; identical 401s for wrong password and unknown email; 400 for missing fields |
+| `tests/auth/login.test.ts` | 7 | JWT with verified `sub`, `role`, `exp`; identical 401s for wrong password and unknown email; 400 for missing fields |
 | `tests/auth/tokenService.test.ts` | 7 | Token lifetime handling and rejection of lifetimes without a unit |
-| `tests/vehicles/vehicles.test.ts` | 40 | 401/403 protection; admin-only create, update, delete, restock; listing; search and filters; 400 validation; 404; purchase decrements and returns 409 at zero; concurrent purchases of the last unit give exactly one success |
-| **Total** | **74** | |
+| `tests/errors/errorResponses.test.ts` | 1 | Malformed JSON gets 400 with the standard JSON error shape and no stack trace |
+| `tests/vehicles/vehicles.test.ts` | 40 | 401/403 protection; admin-only create, update, delete, restock; listing; search; 400 validation; 404; purchase at zero returns 409; concurrent purchases of the last unit give exactly one success |
+| `tests/vehicles/discovery.test.ts` | 18 | Listing timestamps; sorting by price, newest and rating (ties by review count, unrated last); availability filter; combined filters; empty results; 400 for unknown sort/availability values (including an SQL-injection attempt); `%`, `_` and SQL text treated literally |
+| `tests/reviews/reviews.test.ts` | 30 | 401 without a valid token; 201 with the new summary; author from the token, not the body; 400 for invalid ratings and comments (missing, 0, 6, fractional, text, blank, over 1,000 characters), with nothing stored; 409 for a second review, and only one of two simultaneous reviews accepted; 404 for unknown vehicles; reviews newest first, average rounded to one decimal, `isOwn`, no full emails or user ids; ratings in the vehicle list; reviews deleted with their vehicle |
+| `tests/purchases/purchases.test.ts` | 25 | Default one unit; multi-unit orders; price, total and buyer derived on the server, ignoring client values; increasing invoice numbers; 400 for invalid quantities with nothing changed; 409 for insufficient or zero stock; 404 for unknown vehicles; no overselling with many simultaneous single- or multi-unit orders; rollback with a generic 500 when recording the order fails; orders keep their price after the vehicle is repriced or deleted; order history only for the owner, newest first; 404 for another user's order; 400 for a malformed id |
+| `tests/purchases/invoices.test.ts` | 6 | UTF-8 text attachment named after the invoice number; contents (invoice number, order reference, date, buyer, vehicle, quantity, unit price, total); still available after the vehicle is deleted; 404 for another user's invoice, including an admin's request; 404 unknown, 400 malformed; 401 without a valid token |
+| `tests/admin/analytics.test.ts` | 14 | 401 without a valid token and 403 for regular users; zeros for no data; inventory and sales calculated from stored rows; at most five top sellers; sales of deleted vehicles still counted; inclusive UTC date range, open-ended ranges, inventory not filtered by date; 400 for invalid dates and inverted ranges |
+| **Total** | **180** | |
 
 ## Backend coverage
 
-From `npm run test:coverage` (V8 provider, `backend/src/**/*.ts`). Unchanged from the previous report, as expected with no backend changes.
+From `npm run test:coverage` (V8 provider, `backend/src/**/*.ts`).
 
 | Metric | Covered | % |
 |---|---|---|
-| Statements | 233 / 261 | **89.27%** |
-| Branches | 131 / 156 | **83.97%** |
-| Functions | 65 / 67 | **97.01%** |
-| Lines | 210 / 236 | **88.98%** |
+| Statements | 429 / 457 | **93.87%** |
+| Branches | 216 / 241 | **89.62%** |
+| Functions | 124 / 126 | **98.41%** |
+| Lines | 387 / 413 | **93.70%** |
 
-Files below 100% (all other files with code are at 100%):
+Files below 100% (all other files are at 100%; the coverage report shortens some file names, completed here from the directory):
 
 | File | Stmts | Branch | Funcs | Lines | Uncovered |
 |---|---|---|---|---|---|
-| `src/auth/authValidation.ts` | 100 | 91.66 | 100 | 100 | branches at lines 18, 47 (request with no body) |
-| `src/auth/tokenService.ts` | 92.3 | 87.5 | 100 | 92.3 | line 71 (signed token with a malformed payload) |
-| `src/auth/userRepository.ts` | 90 | 75 | 100 | 90 | line 34 (database error other than a duplicate email) |
-| `src/errors/errorHandler.ts` | 80 | 50 | 100 | 80 | line 13 (unexpected errors passed to Express) |
-| `src/vehicles/vehicleRepository.ts` | 100 | 95 | 100 | 100 | branch at line 58 (search with no filters) |
-| `src/vehicles/vehicleValidation.ts` | 96.82 | 91.54 | 100 | 100 | some validation branches (lines …8, 87, 90–91, 102 as reported) |
 | `src/config.ts` | 0 | 0 | 0 | 0 | startup configuration, not tested |
 | `src/server.ts` | 0 | 100 | 0 | 0 | startup entry point, not tested |
 | `src/db/seedAdmin.ts` | 0 | 0 | 100 | 0 | admin seed script, not tested |
+| `src/auth/…Validation.ts` | 100 | 91.66 | 100 | 100 | branches at lines 18, 47 |
+| `src/auth/tokenService.ts` | 92.3 | 87.5 | 100 | 92.3 | line 71 |
+| `src/auth/…Repository.ts` | 88.88 | 75 | 100 | 88.88 | line 32 |
+| `src/reviews/…Repository.ts` | 94.11 | 83.33 | 100 | 93.33 | line 59 |
+| `src/reviews/…Validation.ts` | 100 | 92.85 | 100 | 100 | branch at line 6 |
+| `src/vehicles/…Validation.ts` | 97.18 | 92.4 | 100 | 100 | some validation branches (lines …, 96, 99–100, 111 as reported) |
 
-The three startup files account for 23 of the 28 uncovered statements (5 + 4 + 14).
+## End-to-end checks
 
-## Browser checks (not automated tests)
+### Setup
 
-Two Playwright scripts (kept outside the repository) drove headless Google Chrome through the running frontend (`http://localhost:5173`), connected to the running backend and the real PostgreSQL database (`car_dealer`). The admin password was read from `backend/.env` inside the scripts and never printed. Every change was made on a temporary "Demo Tester" vehicle that each script deletes at the end. Before and after both runs the database held 8 models, 42 units, 1 out-of-stock model and a total value of ₹5,12,00,000. Screenshots from these runs went to a temporary folder; `docs/screenshots/` was unchanged (same checksum before and after).
+- **Tooling:** `e2e/e2e.mjs`, a Playwright (`playwright-core` 1.64.1) script with its own small pass/fail runner, driving installed Google Chrome in **headless** mode.
+- **Frontend:** the **production build** (`frontend/dist`, built by `npm run build` at the start of each run), served by `e2e/serve.mjs` on port 5180 with `/api` proxied to the API.
+- **Backend:** the **real API** (`backend/src/server.ts`) on port 3100, with a random `JWT_SECRET` generated for each run.
+- **Database:** the separate PostgreSQL database **`car_dealer_e2e`**. Before each run it was **wiped and reseeded**: `run.sh` drops and recreates it and seeds only a test admin, and refuses any database name that does not end in `_e2e`. The earlier runs, made before `run.sh` existed, used the same steps by hand (`dropdb`/`createdb`, or `TRUNCATE … CASCADE`, then the admin seed). The production **`car_dealer` database was not touched**: no E2E process was given its connection string. The developer's own servers on ports 3000 and 5173 were not used.
+- **Test data:** all vehicles, accounts, reviews and orders are created by the script through the API and the UI. After the final run the E2E database held 3 users, 3 vehicles, 5 orders and 1 review.
 
-Before the browser runs, `GET /api/vehicles` (the data behind the statistics) returned **401** both without a token and with an invalid token.
+### Final run (2026-10-26 03:05:00 IST, exit 0)
 
-### Run 1: existing workflows (`RESULT: ALL STEPS PASSED`, 32 checks)
+Output of `npm test` in `e2e/`, as printed:
 
-- **Sign-in page:** password visibility toggle; wrong credentials show the real 401 message.
-- **Admin:**
-  - hero visible; 8 vehicles loaded; ₹15,00,000 formatting
-  - the out-of-stock Corolla shows "Out of stock" with Purchase disabled; Purchase enabled for an in-stock car
-  - Edit, Restock and Delete controls and the stock table visible
-  - SUV filter gives 4 vehicles, and sorting high to low starts with the Scorpio-N
-  - add form validates first; added, edited (₹5,50,000) and restocked (to 2) the test vehicle through the real API
-- **Regular user:**
-  - no Edit, Restock, Delete, Add vehicle, management table or Manage link
-  - purchase through the real API took stock from 2 to 1
-  - Corolla Purchase disabled at zero
-  - an admin `DELETE` with the user's token was refused with **403**
-- **Responsive layout:** 2 columns at 820 px; 1 column at 390 px with no horizontal overflow.
-- **Cleanup (admin):** cancelling the delete keeps the vehicle; confirming deletes it.
+```
+PASS  1. register a new account through the UI and land on the inventory
+PASS  1b. log out and log back in through the sign-in form
+PASS  2. search by make returns only matching vehicles
+PASS  2b. availability filter "Out of stock" shows only the Swift (server-side)
+PASS  2c. inverted price range is explained inline and nothing is searched
+PASS  2d. out-of-stock vehicle has Purchase disabled
+PASS  3. open vehicle details (own URL)
+PASS  4. submit a review; it is stored and the summary updates
+PASS  4b. the form is gone after reviewing and a second review is refused by the API
+PASS  5. buy 2 units from the details page and see the order confirmation
+PASS  6. inventory decreased by 2 in the UI and in the database
+PASS  6b. asking for more than the stock is blocked in the UI and refused by the API
+PASS  7. purchase history lists the order with its details
+PASS  7b. invoice downloads as a text file with the order details
+PASS  8. a regular user sees Access denied at #analytics and the API answers 403
+PASS  8b. missing or forged tokens get 401; another user cannot see the order or invoice (404)
+PASS  10. favorites and comparison (with ratings) still work
+PASS  10b. sorting by "Top rated" puts the reviewed Creta first
+PASS  10c. a one-click card purchase still decrements stock by one
+PASS  9. admin signs in and adds a vehicle through the dialog
+PASS  9b. admin restocks the out-of-stock Swift
+PASS  9c. admin delete asks for confirmation; Cancel keeps, Delete removes
+PASS  9d. analytics dashboard shows figures from the stored orders
+PASS  9e. analytics date filter: a future range has no sales; All time restores
+PASS  concurrency: 6 simultaneous single-unit purchases of 3 units -> exactly 3 succeed
+PASS  responsive: no horizontal scrolling on phone (390px) for inventory, orders and analytics
+PASS  responsive: no horizontal scrolling on tablet (820px) for inventory, orders and analytics
+PASS  no console errors in the browser
 
-### Run 2: new features (`RESULT: ALL STEPS PASSED`, 23 checks, no page errors)
+28 passed, 0 failed
+```
 
-- **Admin statistics:**
-  - Vehicle models 8, Units in stock 42, Out-of-stock models 1 and Total inventory value ₹5,12,00,000, each matching values calculated directly in PostgreSQL
-  - after adding the test vehicle: +1 model and +2 units
-  - after deleting it: back to the original values
-- **Regular user, statistics:** no inventory statistics shown.
-- **Favorites:** two favorited cars shown in the Favorites view; stored per user as two vehicle ids only (no token or password); still there after a page reload; unfavoriting updates the count.
-- **Compare:** "3 of 3 selected"; a fourth vehicle cannot be added; the comparison table shows the real prices (₹15,00,000, ₹8,00,000, ₹13,00,000); Clear comparison removes the tray.
-- **Vehicle details:**
-  - shows the test vehicle with stock 2; purchase from details through the real API gives stock 1 with a success message
-  - back to inventory shows the updated stock
-  - the details view has its own URL (`#vehicle/<id>`), and the navbar's Inventory link and the browser's Back button both leave it
-  - out-of-stock details disable Purchase
-  - no horizontal overflow at 390 px
+The checks are numbered after the workflows they cover: (1) register and log in, (2) browse and search, (3) vehicle details, (4) review, (5) purchase, (6) inventory decreases, (7) purchase history and invoice, (8) protected resources, (9) admin inventory management and analytics, (10) existing features. They run in the order above because the buyer's checks share one browser session.
 
-### Notes on the browser runs
+Notable assertions:
+- **4:** the stored review is read back through the API, and the response must not contain the buyer's full email.
+- **6 / 6b:** stock is compared with the API, not just the UI. A request for too many units that also sends `unitPrice: 1` gets `409 "Only 3 units in stock"`.
+- **7b:** the downloaded file is read and must contain the invoice number, buyer email, vehicle, quantity, unit price and total.
+- **8:** a regular user gets `403` for analytics, create, delete and restock.
+- **8b:** an admin also gets `404` for a buyer's invoice.
+- **9d:** the analytics figures are checked against the known orders (₹47,00,000 revenue, 2 orders, 3 units sold, 7 units in stock).
 
-- The "user: signed in" line in run 1 cannot fail on its own; sign-in is confirmed by the login step waiting for the user's email in the navigation bar.
-- The "own URL" check in run 2 only confirms that the address has the form `#vehicle/<id>`. The exact id (`#vehicle/v1`) is checked by the frontend unit test.
-- Run 1's browser console showed three failed requests: the 401 and 403 are the deliberate wrong-password and permission checks; the 404 is most likely the missing favicon (`/favicon.ico` returns 404 and the app has none), although Chrome's message does not include the URL.
+### Run history
 
-## Security notes on the new features
+| Run | Result | Notes |
+|---|---|---|
+| First run, before `046c017` | 26 passed, 2 failed | Phone overflow on `#analytics`, favicon 404 (see the disclosure above) |
+| After the `min-w-0` change | 27 passed, 1 failed | Favicon 404 only |
+| After adding the favicon | 28 passed, 0 failed | Script still outside the repository |
+| `e2e/` run through `run.sh` (03:03 IST) | 28 passed, 0 failed | Port 3100 was still listening right after the run, because `npx` starts the API as a child process that the cleanup did not stop directly. That process had exited by the time it was checked again. `run.sh` now starts the API with `node --import tsx`, so the cleanup stops it directly |
+| `run.sh` with that change (03:04 IST) | 28 passed, 0 failed | Ports 3100 and 5180 free afterwards. A defect in `reviews.png` was found (see Screenshots) |
+| Final run (03:05 IST) | 28 passed, 0 failed | Ports 3100 and 5180 confirmed free afterwards |
 
-- **Admin statistics** are rendered only for admins. They are calculated from `GET /api/vehicles`, which requires a valid JWT. Regular users can already see the same price and stock data in the vehicle list, so a separate admin-only statistics endpoint would not add protection. The statistics are simply not offered to regular users.
+### Screenshots
+
+The final run saved `reviews.png`, `orders.png`, `access-denied.png`, `compare-ratings.png`, `inventory-ratings.png`, `analytics.png` (desktop, 1366 px), `mobile-filters.png` and `mobile-analytics.png` (390 px) to `docs/screenshots/`. Each was opened and checked after the run.
+
+The 03:04 run's `reviews.png` showed the fixed navigation bar drawn in the middle of the page, because the full-page capture was taken while scrolled. The script now scrolls to the top before that capture.
+
+The phone screenshot of the analytics dashboard shows the top-selling table scrolling sideways inside its card, which is the intended behaviour after the fix. Its figures are higher than in the desktop screenshot because it is captured later, after the concurrency check's orders.
+
+## Security notes
+
+- **Admin analytics** are protected on the server (`authenticate` + `requireAdmin` on every `/api/admin` route). The frontend hides the link and shows "Access denied", but does not rely on that.
+- **Orders and invoices** are looked up by order id *and* the caller's user id, so other users' orders, including for admins, are indistinguishable from unknown ids (404).
+- **Prices, totals and buyers** are always taken from the database and the token. Client-supplied values are ignored, which is covered by both backend tests and E2E check 6b.
+- **Reviews** expose only a masked email (`b***@example.com`) and an `isOwn` flag, never user ids.
+- **Search** uses parameterized queries; sort orders come from a fixed list; `%` and `_` in text filters are escaped.
+- **Unexpected errors** are logged on the server and answered with a generic `500 { "error": "Internal server error" }`.
 - **Favorites** are stored in the browser's local storage under `dealership-favorites:<userId>` and contain only vehicle ids.
 
 ## Known limitations
 
+- **No lint step:** neither package has a lint script, so lint was not run.
 - **No frontend coverage measurement:** no coverage provider is installed in `frontend/`.
-- **Frontend tests use a fake API.** Contract mismatches would only be caught by the browser runs against the real backend.
-- **Layout is checked in the browser, not by unit tests:** jsdom does not compute CSS layout.
-- **Favorites are kept in this browser only.** They don't follow the user to another browser or device. Ids of deleted vehicles stay in storage but are ignored in counts and views.
+- **Frontend tests use a fake API.** Contract mismatches are only caught by the end-to-end run against the real backend.
+- **Layout is checked only in the browser.** jsdom does not compute CSS layout, so responsive behaviour is verified by the E2E checks and screenshots, not by unit tests.
+- **The E2E script is not a test framework.** It has its own pass/fail runner, requires Google Chrome to be installed, and its checks depend on running in order.
+- **Analytics dates are UTC calendar days.** An order placed shortly after midnight IST falls on the previous UTC day.
+- **Favorites are kept in this browser only.** Ids of deleted vehicles stay in storage but are ignored.
 - **Logging out on a details page keeps `#vehicle/<id>` in the address,** so the next sign-in opens that vehicle's details.
 - **Backend startup files** (`config.ts`, `server.ts`, `seedAdmin.ts`) are not covered by automated tests.
-- **Unexpected server errors** go to Express's default handler, which responds with HTML rather than the API's JSON error format.
-- **No favicon.**
 
 ## Reproducing
 
@@ -154,12 +212,16 @@ cp backend/.env.test.example backend/.env.test
 
 cd backend
 npm install
-npm test
 npm run typecheck
 npm run test:coverage
 
 cd ../frontend
 npm install
+npx tsc --noEmit
 npm test
 npm run build
+
+cd ../e2e
+npm install
+npm test          # recreates car_dealer_e2e; never touches car_dealer
 ```
