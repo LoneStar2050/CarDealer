@@ -19,12 +19,14 @@ A full-stack inventory system built for the Incubyte TDD kata. Users register an
 - Purchase a vehicle, reducing its quantity by one. Stock never goes below zero, even with simultaneous purchases.
 - Admins only: add, update, delete and restock vehicles.
 
-**Frontend**
-- Login and registration forms.
-- Inventory table with search/filter controls.
-- A Purchase button on every vehicle, disabled when the quantity is zero.
-- Admins only: add/edit form, Restock and Delete buttons.
-- Loading, success and error messages; an expired or invalid session logs the user out.
+**Frontend** ("Prestige Motors")
+- Sign-in and registration pages with inline validation, a password show/hide toggle and loading states.
+- A hero section and an inventory grid of vehicle cards showing an illustration (chosen by category, with a fallback if it fails to load), make, model, category, price in rupees (e.g. ₹15,00,000) and stock.
+- Search by make and model, filter by category and price range, sort by price or name, clear filters, and a count of matching vehicles.
+- A Purchase button on every vehicle, disabled with an "Out of stock" label at zero; it shows a pending state, ignores repeated clicks and updates the stock from the server's response.
+- Admins only: Add/Edit vehicle dialogs with validation, a Restock dialog with a quantity input, Delete with a confirmation dialog, and a stock management table. The backend enforces these permissions as well.
+- Success and error messages for every action; an expired session returns to the sign-in page with an explanation.
+- Responsive layout for phone, tablet and desktop.
 
 Errors are returned as JSON: `{ "error": "<message>" }`.
 
@@ -118,9 +120,15 @@ npm run test:coverage   # tests with a coverage report
 npm run typecheck       # TypeScript checks for src/ and tests/
 ```
 
-Current result: 5 test files, 74 tests, all passing. See [TEST_REPORT.md](TEST_REPORT.md) for the full report.
+Current result: 5 test files, 74 tests, all passing. See [TEST_REPORT.md](TEST_REPORT.md) for the backend report.
 
-The frontend has no automated tests; `npm run build` in `frontend/` type-checks and builds it.
+Frontend tests (Vitest and React Testing Library, using an in-test fake of the API):
+
+```bash
+cd frontend
+npm test          # 29 tests: auth, inventory, filters, sorting, purchase, admin flows, error handling
+npm run build     # type-check and production build
+```
 
 ## API
 
@@ -144,27 +152,45 @@ Other responses: `400` invalid input or malformed id, `404` unknown vehicle, `40
 
 ## Screenshots
 
-Captured from the running application (headless Chrome driving the real frontend and backend).
+Captured from the running application (headless Chrome driving the real frontend and backend with the real PostgreSQL data).
 
-**Admin: inventory with Edit, Restock and Delete controls and the Add form**
+**Sign-in page**
+
+![Sign-in page](docs/screenshots/login.png)
+
+**Admin: hero, inventory grid with management controls, and the stock management table**
 
 ![Admin inventory](docs/screenshots/admin-inventory.png)
 
-**Admin: a newly added vehicle with zero stock has its Purchase button disabled**
+**Admin: out-of-stock vehicle with Purchase disabled**
 
-![Admin view with zero-stock vehicle](docs/screenshots/admin-zero-stock-purchase-disabled.png)
+![Admin view with an out-of-stock vehicle](docs/screenshots/admin-zero-stock-purchase-disabled.png)
 
-**Admin: searching by make ("toy")**
+**Admin: SUVs sorted by price, high to low**
 
-![Admin search](docs/screenshots/admin-search.png)
+![Admin search and sort](docs/screenshots/admin-search.png)
+
+**Admin: Add vehicle dialog with inline validation**
+
+![Add vehicle dialog](docs/screenshots/admin-add-vehicle.png)
+
+**Admin: stock management table**
+
+![Stock management](docs/screenshots/admin-manage.png)
 
 **Regular user: inventory with only the Purchase action**
 
 ![User inventory](docs/screenshots/user-inventory.png)
 
-**Regular user: after buying the last unit, Purchase is disabled**
+**Regular user: Purchase disabled for an out-of-stock vehicle**
 
-![User view at zero stock](docs/screenshots/user-zero-stock-purchase-disabled.png)
+![User view with an out-of-stock vehicle](docs/screenshots/user-zero-stock-purchase-disabled.png)
+
+**Tablet (820 px) and phone (390 px) layouts**
+
+![Tablet layout](docs/screenshots/tablet-inventory.png)
+
+![Phone layout](docs/screenshots/mobile-inventory.png)
 
 ## My AI Usage
 
