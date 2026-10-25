@@ -147,6 +147,40 @@ export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
         },
       });
     }
+    if (path === '/api/admin/analytics' && method === 'GET') {
+      if (token !== ADMIN_TOKEN) return json(403, { error: 'Admin access required' });
+      if (options.ordersDelay) await new Promise((r) => setTimeout(r, options.ordersDelay));
+      // Same calculations as the backend, over the fake's vehicles and orders.
+      const from = url.searchParams.get('from');
+      const to = url.searchParams.get('to');
+      const day = (iso: string) => iso.slice(0, 10);
+      const sold = api.purchases.filter((p) => (!from || day(p.purchasedAt) >= from) && (!to || day(p.purchasedAt) <= to));
+      const top = new Map<string, { vehicleId: string | null; make: string; model: string; unitsSold: number; revenue: number }>();
+      for (const p of sold) {
+        const key = `${p.vehicleId}|${p.make}|${p.model}`;
+        const entry = top.get(key) ?? { vehicleId: p.vehicleId, make: p.make, model: p.model, unitsSold: 0, revenue: 0 };
+        entry.unitsSold += p.quantity;
+        entry.revenue += p.totalAmount;
+        top.set(key, entry);
+      }
+      const outOfStock = api.vehicles.filter((v) => v.quantity === 0);
+      return json(200, {
+        range: { from, to },
+        inventory: {
+          vehicleModels: api.vehicles.length,
+          unitsInStock: api.vehicles.reduce((n, v) => n + v.quantity, 0),
+          outOfStockCount: outOfStock.length,
+          inventoryValue: api.vehicles.reduce((n, v) => n + v.price * v.quantity, 0),
+          outOfStockVehicles: outOfStock.map(({ id, make, model, category }) => ({ id, make, model, category })),
+        },
+        sales: {
+          orderCount: sold.length,
+          unitsSold: sold.reduce((n, p) => n + p.quantity, 0),
+          revenue: sold.reduce((n, p) => n + p.totalAmount, 0),
+          topVehicles: [...top.values()].sort((a, b) => b.unitsSold - a.unitsSold || b.revenue - a.revenue).slice(0, 5),
+        },
+      });
+    }
     if (!path.startsWith('/api/vehicles')) return json(404, { error: 'Not found' });
     const isAdmin = token === ADMIN_TOKEN;
     const forbidden = () => json(403, { error: 'Admin access required' });
