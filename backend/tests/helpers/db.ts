@@ -11,5 +11,17 @@ export async function setupTestDatabase(): Promise<Pool> {
 
 /** Removes all rows so each test starts from a clean state. */
 export async function resetDatabase(pool: Pool): Promise<void> {
-  await pool.query('TRUNCATE TABLE vehicles, users RESTART IDENTITY CASCADE');
+  await pool.query('TRUNCATE TABLE vehicles, users CASCADE');
+}
+
+/**
+ * Removes all rows and closes the pool. The pool is always closed,
+ * even if the cleanup query fails, so the test run cannot hang.
+ */
+export async function resetDatabaseAndClose(pool: Pool): Promise<void> {
+  try {
+    await resetDatabase(pool);
+  } finally {
+    await pool.end();
+  }
 }

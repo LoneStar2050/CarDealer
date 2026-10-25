@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { createPool } from '../../src/db/pool.js';
 import { migrate } from '../../src/db/migrate.js';
+import { resetDatabaseAndClose } from '../helpers/db.js';
 
 describe('database migration', () => {
   let pool: Pool;
@@ -14,7 +15,8 @@ describe('database migration', () => {
   });
 
   afterAll(async () => {
-    await pool.end();
+    // Leave the schema in place but remove the rows these tests inserted.
+    await resetDatabaseAndClose(pool);
   });
 
   async function columnsOf(table: string): Promise<string[]> {
@@ -79,8 +81,8 @@ describe('database migration', () => {
   });
 
   it('rejects duplicate user emails', async () => {
-    await expect(
-      pool.query(`INSERT INTO users (email, password_hash) VALUES ('a@example.com', 'hash')`),
-    ).rejects.toThrow(/duplicate key/);
+    const insert = `INSERT INTO users (email, password_hash) VALUES ('dup@example.com', 'hash')`;
+    await pool.query(insert);
+    await expect(pool.query(insert)).rejects.toThrow(/duplicate key/);
   });
 });

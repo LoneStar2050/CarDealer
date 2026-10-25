@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
-import type { User, UserRepository } from './userRepository.js';
+import type { User } from './user.js';
+import type { UserRepository } from './userRepository.js';
 
 const BCRYPT_SALT_ROUNDS = 10;
 
