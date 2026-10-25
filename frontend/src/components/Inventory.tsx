@@ -152,6 +152,17 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
     [],
   );
 
+  /** Re-reads one vehicle from the server. Failures are ignored, so the error already shown stays. */
+  async function refreshVehicle(id: string) {
+    try {
+      const { vehicles } = await api.listVehicles(session.token);
+      const current = vehicles.find((v) => v.id === id);
+      if (current) replaceVehicle(id, () => current);
+    } catch {
+      // Keep the purchase error; the next reload will correct the stock.
+    }
+  }
+
   /** Buys `quantity` units (one from a card). Resolves true on success. */
   async function purchase(vehicle: Vehicle, quantity?: number): Promise<boolean> {
     if (pendingPurchases.current.has(vehicle.id)) return false; // ignore duplicate clicks
@@ -170,6 +181,8 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
       return true;
     } catch (error) {
       fail(error);
+      // A 409 means the stock changed since the page loaded: show the current stock.
+      if (error instanceof ApiError && error.status === 409) await refreshVehicle(vehicle.id);
       return false;
     } finally {
       pendingPurchases.current.delete(vehicle.id);
