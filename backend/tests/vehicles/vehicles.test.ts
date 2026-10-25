@@ -249,7 +249,11 @@ describe('Vehicles API', () => {
         .post(`/api/vehicles/${vehicle.id}/purchase`)
         .set('Authorization', `Bearer ${userToken}`);
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({ vehicle: { ...vehicle, quantity: 1 } });
+      // The response also carries the recorded order (see tests/purchases).
+      expect(response.body).toEqual({
+        vehicle: { ...vehicle, quantity: 1 },
+        purchase: expect.objectContaining({ vehicleId: vehicle.id, quantity: 1 }),
+      });
     });
 
     it('returns 409 when the vehicle is out of stock and keeps quantity at 0', async () => {

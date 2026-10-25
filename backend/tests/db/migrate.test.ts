@@ -10,7 +10,7 @@ describe('database migration', () => {
   beforeAll(async () => {
     pool = createPool(process.env['DATABASE_URL']!);
     // Start from an empty schema so we prove migrate() creates everything.
-    await pool.query('DROP TABLE IF EXISTS reviews, vehicles, users');
+    await pool.query('DROP TABLE IF EXISTS purchases, reviews, vehicles, users');
     await migrate(pool);
   });
 
@@ -122,10 +122,61 @@ describe('database migration', () => {
       await expect(insertReview(userId, vehicleId, 4)).rejects.toThrow(/duplicate key/);
     });
 
+    it('rejects a review by a user that does not exist', async () => {
+      const { vehicleId } = await userAndVehicle();
+      await expect(
+        insertReview('00000000-0000-0000-0000-000000000000', vehicleId, 5),
+      ).rejects.toThrow(/foreign key/);
+    });
+
     it('rejects a review for a vehicle that does not exist', async () => {
       const { userId } = await userAndVehicle();
       await expect(
         insertReview(userId, '00000000-0000-0000-0000-000000000000', 5),
+      ).rejects.toThrow(/foreign key/);
+    });
+  });
+
+  describe('purchases table', () => {
+    async function buyerId(): Promise<string> {
+      const user = await pool.query<{ id: string }>(
+        `INSERT INTO users (email, password_hash) VALUES (gen_random_uuid() || '@example.com', 'hash') RETURNING id`,
+      );
+      return user.rows[0]!.id;
+    }
+
+    const insertPurchase = (userId: string, quantity: number, unitPrice: number, total: number) =>
+      pool.query<{ order_number: string }>(
+        `INSERT INTO purchases (user_id, make, model, category, quantity, unit_price, total_amount)
+         VALUES ($1, 'Kia', 'Seltos', 'SUV', $2, $3, $4) RETURNING order_number`,
+        [userId, quantity, unitPrice, total],
+      );
+
+    it('creates the purchases table with order, vehicle snapshot and money columns', async () => {
+      expect(await columnsOf('purchases')).toEqual([
+        'category', 'id', 'make', 'model', 'order_number', 'purchased_at', 'quantity',
+        'total_amount', 'unit_price', 'user_id', 'vehicle_id',
+      ]);
+    });
+
+    it('numbers orders automatically and uniquely', async () => {
+      const userId = await buyerId();
+      const first = await insertPurchase(userId, 1, 100, 100);
+      const second = await insertPurchase(userId, 1, 100, 100);
+      expect(Number(second.rows[0]!.order_number)).toBeGreaterThan(Number(first.rows[0]!.order_number));
+    });
+
+    it.each([0, -1])('rejects a quantity of %i', async (quantity) => {
+      await expect(insertPurchase(await buyerId(), quantity, 100, 100 * quantity)).rejects.toThrow(/check constraint/);
+    });
+
+    it('rejects a total that is not unit price × quantity', async () => {
+      await expect(insertPurchase(await buyerId(), 2, 100, 150)).rejects.toThrow(/check constraint/);
+    });
+
+    it('rejects an order for a user that does not exist', async () => {
+      await expect(
+        insertPurchase('00000000-0000-0000-0000-000000000000', 1, 100, 100),
       ).rejects.toThrow(/foreign key/);
     });
   });
