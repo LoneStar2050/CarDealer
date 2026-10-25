@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { Vehicle } from '../api';
+import type { Review, Vehicle } from '../api';
 
 /**
  * A small in-memory stand-in for the backend, used only by tests. It mirrors
@@ -12,10 +12,15 @@ export interface FakeApiOptions {
   overrides?: Record<string, { status: number; body?: unknown }>;
   /** Delay (ms) before responding to purchases, to observe pending states. */
   purchaseDelay?: number;
+  /** Existing reviews per vehicle id. */
+  reviews?: Record<string, Review[]>;
+  /** Delay (ms) before responding to review requests. */
+  reviewDelay?: number;
 }
 
 export interface FakeApi {
   vehicles: Vehicle[];
+  reviews: Record<string, Review[]>;
   calls: { method: string; path: string; body: unknown; token: string | null }[];
 }
 
@@ -30,6 +35,9 @@ export function vehicle(overrides: Partial<Vehicle> = {}): Vehicle {
     category: 'SUV',
     price: 1500000,
     quantity: 6,
+    averageRating: null,
+    reviewCount: 0,
+    createdAt: '2026-10-01T10:00:00.000Z',
     ...overrides,
   };
 }
@@ -45,9 +53,31 @@ export function signInAs(role: 'admin' | 'user') {
   );
 }
 
+export function review(overrides: Partial<Review> = {}): Review {
+  return {
+    id: `r-${Math.random().toString(36).slice(2, 8)}`,
+    rating: 4,
+    comment: 'Great car.',
+    author: 'o***@example.com',
+    isOwn: false,
+    createdAt: '2026-10-20T09:30:00.000Z',
+    ...overrides,
+  };
+}
+
+/** Mean rating rounded to one decimal, as the backend computes it. */
+const summaryOf = (reviews: Review[]) => ({
+  averageRating: reviews.length ? Math.round((reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) * 10) / 10 : null,
+  reviewCount: reviews.length,
+});
+
 export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
   // Copy each vehicle so state changes (purchases, edits) never leak between tests.
-  const api: FakeApi = { vehicles: (options.vehicles ?? []).map((v) => ({ ...v })), calls: [] };
+  const api: FakeApi = {
+    vehicles: (options.vehicles ?? []).map((v) => ({ ...v })),
+    reviews: Object.fromEntries(Object.entries(options.reviews ?? {}).map(([id, list]) => [id, list.map((r) => ({ ...r }))])),
+    calls: [],
+  };
   const json = (status: number, body?: unknown) =>
     new Response(body === undefined ? null : JSON.stringify(body), {
       status,
@@ -102,6 +132,23 @@ export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
       const created = { id: `v-new-${api.vehicles.length}`, ...body };
       api.vehicles.push(created);
       return json(201, { vehicle: created });
+    }
+
+    const reviewsMatch = path.match(/^\/api\/vehicles\/([^/]+)\/reviews$/);
+    if (reviewsMatch) {
+      const id = reviewsMatch[1]!;
+      const reviewed = api.vehicles.find((v) => v.id === id);
+      if (options.reviewDelay) await new Promise((r) => setTimeout(r, options.reviewDelay));
+      if (!reviewed) return json(404, { error: 'Vehicle not found' });
+      const list = (api.reviews[id] ??= []);
+      if (method === 'GET') return json(200, { reviews: list, summary: summaryOf(list) });
+      if (method === 'POST') {
+        if (list.some((r) => r.isOwn)) return json(409, { error: 'You have already reviewed this vehicle' });
+        const created = review({ id: `r-new-${list.length}`, rating: body.rating, comment: body.comment.trim(), author: 'y***@example.com', isOwn: true, createdAt: new Date().toISOString() });
+        list.unshift(created);
+        Object.assign(reviewed, summaryOf(list));
+        return json(201, { review: created, summary: summaryOf(list) });
+      }
     }
 
     const match = path.match(/^\/api\/vehicles\/([^/]+)(?:\/(purchase|restock))?$/);
