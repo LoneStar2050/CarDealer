@@ -24,7 +24,11 @@ A full-stack inventory system built for the Incubyte TDD kata. Users register an
 - A hero section and an inventory grid of vehicle cards showing an illustration (chosen by category, with a fallback if it fails to load), make, model, category, price in rupees (e.g. ₹15,00,000) and stock.
 - Search by make and model, filter by category and price range, sort by price or name, clear filters, and a count of matching vehicles.
 - A Purchase button on every vehicle, disabled with an "Out of stock" label at zero; it shows a pending state, ignores repeated clicks and updates the stock from the server's response.
+- **Favorites:** a heart on each vehicle saves it to a per-user favorites list (kept in this browser's local storage; only vehicle ids are stored, never tokens or passwords), with an "All vehicles / Favorites" switch.
+- **Compare:** select up to three vehicles and compare make, model, category, price and stock side by side.
+- **Vehicle details:** a dedicated view (URL `#vehicle/<id>`, so it can be linked and the Back button works) with the image, all fields, stock status and a Purchase button.
 - Admins only: Add/Edit vehicle dialogs with validation, a Restock dialog with a quantity input, Delete with a confirmation dialog, and a stock management table. The backend enforces these permissions as well.
+- Admins only: **inventory statistics** (vehicle models, units in stock, out-of-stock models and total inventory value), calculated from the live inventory returned by the API.
 - Success and error messages for every action; an expired session returns to the sign-in page with an explanation.
 - Responsive layout for phone, tablet and desktop.
 
@@ -126,7 +130,7 @@ Frontend tests (Vitest and React Testing Library, using an in-test fake of the A
 
 ```bash
 cd frontend
-npm test          # 29 tests: auth, inventory, filters, sorting, purchase, admin flows, error handling
+npm test          # 47 tests: auth, inventory, filters, sorting, purchase, admin flows, favorites, compare, details, statistics, error handling
 npm run build     # type-check and production build
 ```
 
@@ -178,6 +182,10 @@ Captured from the running application (headless Chrome driving the real frontend
 
 ![Stock management](docs/screenshots/admin-manage.png)
 
+**Admin: inventory statistics above the stock table**
+
+![Inventory statistics](docs/screenshots/admin-stats.png)
+
 **Regular user: inventory with only the Purchase action**
 
 ![User inventory](docs/screenshots/user-inventory.png)
@@ -185,6 +193,18 @@ Captured from the running application (headless Chrome driving the real frontend
 **Regular user: Purchase disabled for an out-of-stock vehicle**
 
 ![User view with an out-of-stock vehicle](docs/screenshots/user-zero-stock-purchase-disabled.png)
+
+**Favorites view**
+
+![Favorites](docs/screenshots/user-favorites.png)
+
+**Comparing three vehicles**
+
+![Compare vehicles](docs/screenshots/compare.png)
+
+**Vehicle details after a purchase** (shown on a temporary test vehicle)
+
+![Vehicle details](docs/screenshots/vehicle-details.png)
 
 **Tablet (820 px) and phone (390 px) layouts**
 

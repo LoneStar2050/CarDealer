@@ -1,28 +1,27 @@
+import type { ReactNode } from 'react';
 import type { Vehicle } from '../api';
 import { formatRupees } from '../format';
 import { ui } from './ui';
 
 /** Admin overview of every vehicle's stock level. */
-export function StockTable({ vehicles, onAdd, onRestock, onEdit }: {
+export function StockTable({ stats, vehicles, onAdd, onRestock, onEdit }: {
+  /** Summary shown above the table (admin statistics). */
+  stats: ReactNode;
   vehicles: Vehicle[];
   onAdd: () => void;
   onRestock: (vehicle: Vehicle) => void;
   onEdit: (vehicle: Vehicle) => void;
 }) {
-  const totalUnits = vehicles.reduce((sum, v) => sum + v.quantity, 0);
-  const outOfStock = vehicles.filter((v) => v.quantity === 0).length;
-
   return (
     <section id="manage" className="scroll-mt-24 space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-900">Manage inventory</h2>
-          <p className="text-sm text-slate-500">
-            {vehicles.length} models · {totalUnits} units in stock · {outOfStock} out of stock
-          </p>
+          <p className="text-sm text-slate-500">Live figures from the current inventory.</p>
         </div>
         <button type="button" className={`${ui.button} ${ui.primary}`} onClick={onAdd}><span aria-hidden="true">+</span> Add vehicle</button>
       </div>
+      {stats}
       <div className="overflow-x-auto rounded-2xl bg-white shadow-sm ring-1 ring-slate-200">
         <table aria-label="Stock management" className="w-full min-w-[640px] text-left text-sm">
           <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">

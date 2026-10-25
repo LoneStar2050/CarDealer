@@ -43,7 +43,7 @@ export function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
 }
 
 /** An accessible modal dialog: labelled by its title, closes on Escape or backdrop click. */
-export function Dialog({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Dialog({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   const titleId = useId();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
@@ -57,7 +57,7 @@ export function Dialog({ title, onClose, children }: { title: string; onClose: (
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+        className={`w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} rounded-2xl bg-white p-6 shadow-2xl`}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <h2 id={titleId} className="mb-4 text-xl font-bold text-slate-900">{title}</h2>

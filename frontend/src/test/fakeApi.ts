@@ -46,7 +46,8 @@ export function signInAs(role: 'admin' | 'user') {
 }
 
 export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
-  const api: FakeApi = { vehicles: [...(options.vehicles ?? [])], calls: [] };
+  // Copy each vehicle so state changes (purchases, edits) never leak between tests.
+  const api: FakeApi = { vehicles: (options.vehicles ?? []).map((v) => ({ ...v })), calls: [] };
   const json = (status: number, body?: unknown) =>
     new Response(body === undefined ? null : JSON.stringify(body), {
       status,
