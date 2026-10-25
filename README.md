@@ -279,7 +279,7 @@ I used Claude Code as a pair programmer throughout the project, directing each s
 - **Frontend and setup:** it generated the server entry point, configuration, admin seed script and the React frontend, and checked them against the running backend.
 - **Documentation:** it drafted this README and [TEST_REPORT.md](TEST_REPORT.md) from the actual project files and test output. The screenshots it captured with the end-to-end script were later replaced by my own, in `screenshot/`.
 
-Every commit where AI was used carries the trailer `Co-authored-by: Claude <AI@users.noreply.github.com>`.
+Commits where AI was used carry the trailer `Co-authored-by: Claude <AI@users.noreply.github.com>`, with one exception: from `1ecc812` ("test: stabilize frontend loading and comparison tests") onwards, I chose to commit without it, although Claude Code still helped with those changes.
 
 ### Note on commit-message formatting
 
