@@ -66,4 +66,61 @@ describe('POST /api/auth/login', () => {
     expect(body).not.toContain(storedHash);
     expect(body).not.toMatch(/password/i);
   });
+
+  describe('invalid credentials', () => {
+    it('returns 401 with an error for a wrong password', async () => {
+      await registerUser();
+
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({ email: credentials.email, password: 'wrong-password-123' });
+
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual({ error: expect.stringMatching(/\S/) });
+    });
+
+    it('returns 401 with an error for an unknown email', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'nobody@example.com', password: credentials.password });
+
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual({ error: expect.stringMatching(/\S/) });
+    });
+
+    it('gives the same response for a wrong password and an unknown email', async () => {
+      await registerUser();
+
+      const wrongPassword = await request(app)
+        .post('/api/auth/login')
+        .send({ email: credentials.email, password: 'wrong-password-123' });
+      const unknownEmail = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'nobody@example.com', password: credentials.password });
+
+      expect(wrongPassword.status).toBe(401);
+      expect(unknownEmail.status).toBe(401);
+      expect(wrongPassword.body).toEqual(unknownEmail.body);
+    });
+  });
+
+  describe('validation', () => {
+    it('returns 400 with an error when the email is missing', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({ password: credentials.password });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({ error: expect.stringMatching(/\S/) });
+    });
+
+    it('returns 400 with an error when the password is missing', async () => {
+      const response = await request(app)
+        .post('/api/auth/login')
+        .send({ email: credentials.email });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({ error: expect.stringMatching(/\S/) });
+    });
+  });
 });
