@@ -3,6 +3,7 @@ import { api, ApiError, type RatingSummary, type Session, type Vehicle, type Veh
 import { useCompare } from '../hooks/useCompare';
 import { useFavorites } from '../hooks/useFavorites';
 import { DeleteDialog, RestockDialog, VehicleFormDialog } from './AdminDialogs';
+import { priceRangeError, sortVehicles } from '../discovery';
 import { CompareTray } from './CompareTray';
 import { EMPTY_FILTERS, Filters, type FilterValues, type SortOrder } from './Filters';
 import { InventoryStats } from './InventoryStats';
@@ -31,13 +32,6 @@ function scrollToHashTarget() {
 }
 const hasFilters = (f: FilterValues) => Object.values(f).some((value) => value.trim() !== '');
 
-function sortVehicles(vehicles: Vehicle[], sort: SortOrder): Vehicle[] {
-  const sorted = [...vehicles];
-  if (sort === 'price-asc') sorted.sort((a, b) => a.price - b.price);
-  if (sort === 'price-desc') sorted.sort((a, b) => b.price - a.price);
-  if (sort === 'name') sorted.sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
-  return sorted;
-}
 
 /** The signed-in experience: hero, inventory grid with filters, and admin management. */
 export function Inventory({ session, onSessionExpired }: { session: Session; onSessionExpired: () => void }) {
@@ -49,6 +43,7 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
   const [filters, setFilters] = useState<FilterValues>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<FilterValues>(EMPTY_FILTERS);
   const [sort, setSort] = useState<SortOrder>('featured');
+  const [priceError, setPriceError] = useState<string | null>(null);
   const [purchasing, setPurchasing] = useState<Set<string>>(new Set());
   const pendingPurchases = useRef(new Set<string>());
   const [action, setAction] = useState<AdminAction>(null);
@@ -124,12 +119,21 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
     scrollToHashTarget();
   }
 
+  function changeFilters(next: FilterValues) {
+    if (next.minPrice !== filters.minPrice || next.maxPrice !== filters.maxPrice) setPriceError(null);
+    setFilters(next);
+  }
+
   function applyFilters() {
+    const error = priceRangeError(filters.minPrice, filters.maxPrice);
+    setPriceError(error);
+    if (error) return;
     setApplied(filters);
     void load(filters);
   }
 
   function clearFilters() {
+    setPriceError(null);
     setFilters(EMPTY_FILTERS);
     setApplied(EMPTY_FILTERS);
     setSort('featured');
@@ -270,7 +274,8 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
             values={filters}
             categories={categories}
             sort={sort}
-            onChange={setFilters}
+            onChange={changeFilters}
+            priceError={priceError}
             onSortChange={setSort}
             onApply={applyFilters}
             onClear={clearFilters}
