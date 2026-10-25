@@ -19,7 +19,12 @@ export function Navbar({ user, onLogout }: { user: User | null; onLogout: () => 
             <div className="order-last flex w-full items-center gap-5 overflow-x-auto text-sm font-medium text-slate-300 md:order-none md:w-auto">
               <a href="#inventory" className="rounded hover:text-white focus-visible:outline-2 focus-visible:outline-amber-400">Inventory</a>
               <a href="#orders" className="rounded hover:text-white focus-visible:outline-2 focus-visible:outline-amber-400">My orders</a>
-              {user.role === 'admin' && <a href="#manage" className="rounded hover:text-white focus-visible:outline-2 focus-visible:outline-amber-400">Manage</a>}
+              {user.role === 'admin' && (
+                <>
+                  <a href="#manage" className="rounded hover:text-white focus-visible:outline-2 focus-visible:outline-amber-400">Manage</a>
+                  <a href="#analytics" className="rounded hover:text-white focus-visible:outline-2 focus-visible:outline-amber-400">Analytics</a>
+                </>
+              )}
             </div>
             <div className="flex items-center gap-3">
               <div className="hidden text-right leading-tight sm:block">
@@ -59,5 +64,18 @@ export function Hero({ vehicleCount }: { vehicleCount: number }) {
         <img src={suv} alt="" aria-hidden="true" className="w-full rounded-3xl shadow-2xl ring-1 ring-white/10" />
       </div>
     </section>
+  );
+}
+
+/** Shown when a page needs a role the signed-in user does not have. */
+export function AccessDenied({ message }: { message: string }) {
+  return (
+    <main className="mx-auto max-w-xl px-4 py-16 sm:px-6">
+      <section aria-label="Access denied" className="rounded-2xl bg-white p-8 text-center shadow-sm ring-1 ring-slate-200">
+        <h2 className="text-2xl font-bold text-slate-900">Access denied</h2>
+        <p className="mt-2 text-slate-600">{message}</p>
+        <a href="#inventory" className={`${ui.button} ${ui.primary} mt-6`}>Back to inventory</a>
+      </section>
+    </main>
   );
 }

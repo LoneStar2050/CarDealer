@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
 import type { Session } from './api';
 import { AuthPage } from './components/AuthPage';
+import { AdminDashboard, ANALYTICS_DENIED } from './components/AdminDashboard';
 import { Inventory } from './components/Inventory';
-import { Navbar } from './components/Layout';
+import { AccessDenied, Navbar } from './components/Layout';
 import { PurchaseHistory } from './components/PurchaseHistory';
 import type { Notice } from './components/ui';
 import { useHashRoute } from './hooks/useHashRoute';
@@ -43,6 +44,13 @@ export function App() {
       <Navbar user={session?.user ?? null} onLogout={() => signOut()} />
       {session && route === 'orders' ? (
         <PurchaseHistory key={session.token} session={session} onSessionExpired={expire} />
+      ) : session && route === 'analytics' ? (
+        // The backend enforces admin-only access too; this just avoids a pointless request.
+        session.user.role === 'admin' ? (
+          <AdminDashboard key={session.token} session={session} onSessionExpired={expire} />
+        ) : (
+          <AccessDenied message={ANALYTICS_DENIED} />
+        )
       ) : session ? (
         <Inventory key={session.token} session={session} onSessionExpired={expire} />
       ) : (

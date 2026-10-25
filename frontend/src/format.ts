@@ -20,3 +20,10 @@ export function formatDate(iso: string): string {
 export function plural(count: number, word: string): string {
   return `${count} ${count === 1 ? word : `${word}s`}`;
 }
+
+const calendarDay = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+
+/** Formats a calendar day "2026-10-01" as "1 Oct 2026", independent of the local time zone. */
+export function formatDay(day: string): string {
+  return calendarDay.format(new Date(`${day}T00:00:00Z`));
+}

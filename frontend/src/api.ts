@@ -41,6 +41,23 @@ export interface Purchase {
   totalAmount: number;
   purchasedAt: string;
 }
+/** Admin dashboard figures, calculated by the server from stored data. */
+export interface Analytics {
+  range: { from: string | null; to: string | null };
+  inventory: {
+    vehicleModels: number;
+    unitsInStock: number;
+    outOfStockCount: number;
+    inventoryValue: number;
+    outOfStockVehicles: { id: string; make: string; model: string; category: string }[];
+  };
+  sales: {
+    orderCount: number;
+    unitsSold: number;
+    revenue: number;
+    topVehicles: { vehicleId: string | null; make: string; model: string; unitsSold: number; revenue: number }[];
+  };
+}
 /** A file returned by the API, e.g. an invoice. */
 export interface DownloadedFile { blob: Blob; filename: string }
 export interface Session { token: string; user: User }
@@ -123,6 +140,11 @@ export const api = {
     request<{ reviews: Review[]; summary: RatingSummary }>(`/vehicles/${vehicleId}/reviews`, { token }),
   createReview: (token: string, vehicleId: string, input: ReviewInput) =>
     request<{ review: Review; summary: RatingSummary }>(`/vehicles/${vehicleId}/reviews`, { method: 'POST', token, body: input }),
+  /** Admin only. Dates are YYYY-MM-DD, inclusive; empty means unbounded. */
+  analytics: (token: string, range: { from: string; to: string }) => {
+    const query = new URLSearchParams(Object.entries(range).filter(([, v]) => v !== '')).toString();
+    return request<Analytics>(`/admin/analytics${query ? `?${query}` : ''}`, { token });
+  },
   restock: (token: string, id: string, quantity: number) =>
     request<{ vehicle: Vehicle }>(`/vehicles/${id}/restock`, { method: 'POST', token, body: { quantity } }),
 };

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 
 /** Top-level pages addressed by the URL hash. Everything else is part of the inventory page. */
-export type Route = 'inventory' | 'orders';
+export type Route = 'inventory' | 'orders' | 'analytics';
 
-const routeFromHash = (): Route => (window.location.hash === '#orders' ? 'orders' : 'inventory');
+const PAGES: Record<string, Route> = { '#orders': 'orders', '#analytics': 'analytics' };
+
+const routeFromHash = (): Route => PAGES[window.location.hash] ?? 'inventory';
 
 /** The current page, following hash changes (links and the Back button). */
 export function useHashRoute(): Route {
