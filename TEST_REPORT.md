@@ -2,20 +2,20 @@
 
 ## Summary
 
-Results from the verification run on **2026-10-26** (Node.js 26.12.1, PostgreSQL 17.11, Google Chrome 155), after adding reviews and ratings, purchase history, invoices, advanced vehicle discovery, admin analytics and the comparison improvements, and after the fix commit `046c017`. Unit tests, type checks and the build ran at 03:00 IST; the final end-to-end run started at 03:05:00 IST.
+Results from the verification run on **2026-10-26** (Node.js 26.12.1, PostgreSQL 17.11, Google Chrome 155), after adding reviews and ratings, purchase history, invoices, advanced vehicle discovery, admin analytics and the comparison improvements, and after the fix commit `046c017`. Unit tests, type checks and the build ran at 03:00 IST; the final end-to-end run started at 03:05:00 IST. The frontend test row was updated at about 04:25 IST, after the stale-stock regression test (`2c20a95`, `49eda16`) and the test-stability fix (`1ecc812`).
 
 | Check | Type | Command (directory) | Result |
 |---|---|---|---|
 | Backend tests | Unit + API integration tests | `npm run test:coverage` (`backend/`) | **180 / 180 passed** in 11 files, 0 failed, 0 skipped (exit 0, 62.78 s) |
 | Backend coverage | Coverage | same run | statements 93.87%, branches 89.62%, functions 98.41%, lines 93.70% |
 | Backend type check | Type checking | `npm run typecheck` (`backend/`) | **Passed** (exit 0, no errors) |
-| Frontend tests | Component tests | `npx vitest run` (`frontend/`, same as `npm test`) | **87 / 87 passed** in 10 files, 0 failed, 0 skipped (exit 0, 4.31 s) |
+| Frontend tests | Component tests | `npx vitest run` (`frontend/`, same as `npm test`) | **88 / 88 passed** in 10 files, 0 failed, 0 skipped, in each of 10 consecutive runs (exit 0, 6.17–10.78 s per run) |
 | Frontend type check | Type checking | `npx tsc --noEmit` (`frontend/`) | **Passed** (exit 0, no errors) |
 | Frontend build | Build | `npm run build` (`frontend/`) | **Passed** (exit 0): `tsc --noEmit`, then `vite build` |
 | End-to-end | Browser checks | `npm test` (`e2e/`, runs `./run.sh`) | **28 passed, 0 failed** (exit 0) |
 | Lint | — | — | **Not run.** Neither `frontend/` nor `backend/` has a lint script |
 
-**Total automated unit and integration tests: 267 (180 backend + 87 frontend), all passing.**
+**Total automated unit and integration tests: 268 (180 backend + 88 frontend), all passing.**
 
 - No coverage thresholds are configured, so none can fail.
 - Frontend coverage was **not measured**: no coverage provider is installed in `frontend/`.
@@ -49,7 +49,7 @@ Vitest 5.0.5 with React Testing Library on jsdom. UI tests render the whole app 
 | `App.test.tsx` › authentication | 6 | Sign-in; API error for wrong credentials; inline validation; password toggle; expired session returns to sign-in |
 | `App.test.tsx` › inventory | 4 | Hero; cards with category, rupee price, stock and image; load error; empty state |
 | `App.test.tsx` › search and filters | 4 | Filters sent to the search endpoint; category options; Clear filters; sorting by price and name |
-| `App.test.tsx` › purchasing | 3 | Enabled in stock, disabled at zero; pending state blocks a second request; API error shown |
+| `App.test.tsx` › purchasing | 4 | Enabled in stock, disabled at zero; pending state blocks a second request; API error shown; after a 409 for a vehicle that sold out since the page loaded, the card refreshes to "Out of stock" with Purchase disabled and the error stays |
 | `App.test.tsx` › admin controls | 8 | Hidden from regular users; add (with validation), edit, restock, delete with confirmation; backend 403 shown |
 | `features.test.tsx` | 14 | Favorites (4), compare cars (3), vehicle details with its own URL (4), admin inventory statistics (3) |
 | `reviews.test.tsx` | 9 | Rating and count on cards; loading, empty, error and loaded states of the reviews; submitting a review updates the summary and the card; rating and comment validated before sending; server rejection shown; no form after the user has reviewed |
@@ -57,7 +57,9 @@ Vitest 5.0.5 with React Testing Library on jsdom. UI tests render the whole app 
 | `discovery.test.tsx` | 6 | Newest-first and top-rated sorting (ties by review count, unrated last); availability filter sent to the API; combined filters; Clear filters resets them; an inverted price range is explained instead of searched |
 | `analytics.test.tsx` | 10 | Analytics link for admins only; figures from the API after a loading state; inclusive date filter; start after end rejected without calling the API; empty and error states; regular users see "Access denied" and nothing is requested; 403 from the server shown as access denied; expired session |
 | `compare.test.tsx` | 5 | Availability, rating and listing date with fallbacks for missing values; lowest price and best rating highlighted; Remove inside the table; closes below two vehicles; focus moves into the dialog and back to the Compare button on Escape |
-| **Total** | **87** | |
+| **Total** | **88** | |
+
+**Stability.** Before `1ecc812`, 2 of 8 consecutive full runs failed intermittently: four tests checked a short-lived pending state after an awaited click while relying on a 20–50 ms fake API delay, and some whole-app tests exceeded Vitest's 5 s timeout when the machine was busy (up to 5.06 s, at a load average of 23–48). The fake API now holds those requests until the test releases them, and `testTimeout` is 15 s. No assertion was removed or weakened. After the fix, 10 consecutive full runs each passed 88 / 88.
 
 Build output: `dist/index.html` 0.49 kB, CSS 32.52 kB (6.75 kB gzip), JS 288.78 kB (85.30 kB gzip).
 
@@ -175,7 +177,7 @@ Notable assertions:
 
 ### Screenshots
 
-The final run saved `reviews.png`, `orders.png`, `access-denied.png`, `compare-ratings.png`, `inventory-ratings.png`, `analytics.png` (desktop, 1366 px), `mobile-filters.png` and `mobile-analytics.png` (390 px) to `docs/screenshots/`. Each was opened and checked after the run.
+The final run saved `reviews.png`, `orders.png`, `access-denied.png`, `compare-ratings.png`, `inventory-ratings.png`, `analytics.png` (desktop, 1366 px), `mobile-filters.png` and `mobile-analytics.png` (390 px) to `docs/screenshots/`. Each was opened and checked after the run. These files were later removed from the repository (`c32c549`); the README now shows the author's own screenshots from `screenshot/`.
 
 The 03:04 run's `reviews.png` showed the fixed navigation bar drawn in the middle of the page, because the full-page capture was taken while scrolled. The script now scrolls to the top before that capture.
 

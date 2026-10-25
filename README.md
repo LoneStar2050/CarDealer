@@ -59,7 +59,7 @@ Errors are returned as JSON: `{ "error": "<message>" }`. Malformed JSON bodies g
 backend/    Express API (src/), tests (tests/), env templates
 frontend/   React single-page app (src/), Vite config with an /api proxy
 e2e/        End-to-end browser checks (run.sh, e2e.mjs) and a small static server for the production build
-docs/       Screenshots of the running application
+screenshot/ Screenshots of the running application
 ```
 
 ## Prerequisites
@@ -173,7 +173,7 @@ npm test              # runs ./run.sh
 3. starts the API on port 3100 with a random, run-only `JWT_SECRET`, and serves `frontend/dist` on port 5180 with `/api` proxied to the API. These ports do not clash with the dev servers on 3000 and 5173.
 4. runs `e2e.mjs` in headless Chrome, then stops both servers.
 
-It saves screenshots to `docs/screenshots/` (see below). Settings can be overridden with environment variables: `E2E_DB`, `E2E_DATABASE_URL`, `E2E_API_PORT`, `E2E_FRONTEND_PORT`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`, `E2E_SCREENSHOT_DIR`.
+It saves its own screenshots to `docs/screenshots/` (created if missing; not part of the repository). The screenshots shown below are in `screenshot/`. Settings can be overridden with environment variables: `E2E_DB`, `E2E_DATABASE_URL`, `E2E_API_PORT`, `E2E_FRONTEND_PORT`, `E2E_ADMIN_EMAIL`, `E2E_ADMIN_PASSWORD`, `E2E_SCREENSHOT_DIR`.
 
 There is no lint script in either package, so no linter is run.
 
@@ -185,7 +185,7 @@ Run on 2026-10-26 (Node.js 26.12.1). Details are in [TEST_REPORT.md](TEST_REPORT
 |---|---|
 | Backend tests (`backend/`, `npm run test:coverage`) | **180 / 180 passed** in 11 files; statement coverage 93.87% |
 | Backend type check (`npm run typecheck`) | **Passed** |
-| Frontend tests (`frontend/`, `npm test`) | **87 / 87 passed** in 10 files |
+| Frontend tests (`frontend/`, `npm test`) | **88 / 88 passed** in 10 files, in each of 10 consecutive runs |
 | Frontend type check (`npx tsc --noEmit`) and build (`npm run build`) | **Passed** |
 | End-to-end (`e2e/`, `npm test`) | **28 / 28 checks passed**, 0 failed (final run 03:05 IST) |
 | Lint | **Not run**: no lint script exists |
@@ -221,8 +221,43 @@ Other responses: `400` invalid input, malformed id or malformed JSON; `404` unkn
 
 ## Screenshots
 
-All screenshots were captured from the running application by headless Google Chrome; none are mockups.
+Screenshots of the running application (desktop browser, development database), taken by me and stored in [`screenshot/`](screenshot/).
 
+**Sign-in page**
+
+![Sign-in page](screenshot/Screenshot%202026-10-26%20at%203.35.38%E2%80%AFAM.png)
+
+**Signed-in user: hero section**
+
+![Signed-in user: hero section](screenshot/Screenshot%202026-10-26%20at%203.33.40%E2%80%AFAM.png)
+
+**Filters and the inventory grid, with an out-of-stock vehicle**
+
+![Filters and the inventory grid, with an out-of-stock vehicle](screenshot/Screenshot%202026-10-26%20at%203.33.52%E2%80%AFAM.png)
+
+**Vehicle cards: Purchase disabled at zero stock, Compare on every card**
+
+![Vehicle cards: Purchase disabled at zero stock, Compare on every card](screenshot/Screenshot%202026-10-26%20at%203.34.01%E2%80%AFAM.png)
+
+**Comparing two vehicles, with the lowest price highlighted**
+
+![Comparing two vehicles, with the lowest price highlighted](screenshot/2.png)
+
+**Purchase history with invoice download**
+
+![Purchase history with invoice download](screenshot/Screenshot%202026-10-26%20at%203.34.20%E2%80%AFAM.png)
+
+**A downloaded invoice**
+
+![A downloaded invoice](screenshot/Screenshot%202026-10-26%20at%203.34.36%E2%80%AFAM.png)
+
+**Admin: inventory statistics and stock management**
+
+![Admin: inventory statistics and stock management](screenshot/1.png)
+
+**Admin: sales and inventory analytics dashboard**
+
+![Admin: sales and inventory analytics dashboard](screenshot/Screenshot%202026-10-26%20at%203.36.07%E2%80%AFAM.png)
 
 
 ## My AI Usage
@@ -242,7 +277,7 @@ I used Claude Code as a pair programmer throughout the project, directing each s
 - **Verification:** it checked behaviour that tests do not cover by calling the running API, ran temporary mutation checks to prove a test could fail (restoring the code afterwards), and verified the vehicle tests' RED state in a temporary git worktree before committing them. It also wrote the end-to-end script in `e2e/` and ran it in headless Chrome against an isolated database.
 - **Fixes found by the end-to-end run:** that run found two problems that the unit tests could not catch: the analytics page overflowed on a 390 px phone, and a missing favicon caused a 404 console error. Claude Code fixed both in `046c017`. These fixes have **no RED/GREEN evidence**: no test was seen failing before them in a unit-test run, because jsdom does not compute layout. They are covered only by the end-to-end checks, which failed before the fix (26 of 28 passed) and passed after it.
 - **Frontend and setup:** it generated the server entry point, configuration, admin seed script and the React frontend, and checked them against the running backend.
-- **Documentation:** it drafted this README and [TEST_REPORT.md](TEST_REPORT.md) from the actual project files and test output, and captured the screenshots from the running application.
+- **Documentation:** it drafted this README and [TEST_REPORT.md](TEST_REPORT.md) from the actual project files and test output. The screenshots it captured with the end-to-end script were later replaced by my own, in `screenshot/`.
 
 Every commit where AI was used carries the trailer `Co-authored-by: Claude <AI@users.noreply.github.com>`.
 
