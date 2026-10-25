@@ -39,9 +39,10 @@ describe('ratings on vehicle cards', () => {
 
 describe('customer reviews on the details page', () => {
   it('shows a loading state, then the summary and each review with author, rating, date and comment', async () => {
-    await openDetails('Hyundai Creta', { reviewDelay: 30 });
+    const { api } = await openDetails('Hyundai Creta', { hold: ['loadReviews'] });
 
     expect(within(reviewsSection()).getByText('Loading reviews…')).toBeInTheDocument();
+    api.release('loadReviews');
     const list = await within(reviewsSection()).findByRole('list', { name: 'Reviews' });
     expect(within(reviewsSection()).getByText('4.5 out of 5 · 2 reviews')).toBeInTheDocument();
 
@@ -72,7 +73,7 @@ describe('customer reviews on the details page', () => {
   });
 
   it('submits a review with the chosen rating, then shows it and the new summary', async () => {
-    const { api, user } = await openDetails('Maruti Suzuki Swift', { reviewDelay: 20 });
+    const { api, user } = await openDetails('Maruti Suzuki Swift', { hold: ['postReview'] });
     const section = reviewsSection();
     await within(section).findByText(/No reviews yet/);
 
@@ -82,6 +83,7 @@ describe('customer reviews on the details page', () => {
     await user.click(within(form).getByRole('button', { name: 'Submit review' }));
 
     expect(within(section).getByRole('button', { name: 'Submitting…' })).toBeDisabled();
+    api.release('postReview');
     expect(await within(section).findByRole('status')).toHaveTextContent('Thanks! Your review was posted.');
     expect(within(section).getByText('Peppy and easy to park.')).toBeInTheDocument();
     expect(within(section).getByText('4 out of 5 · 1 review')).toBeInTheDocument();

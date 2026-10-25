@@ -197,13 +197,14 @@ describe('purchasing', () => {
   });
 
   it('shows a pending state, blocks duplicate clicks and updates the stock on success', async () => {
-    const api = await renderSignedIn('user', [creta], { purchaseDelay: 50 });
+    const api = await renderSignedIn('user', [creta], { hold: ['purchase'] });
     const user = userEvent.setup();
 
     await user.click(within(card('Hyundai Creta')).getByRole('button', { name: 'Purchase' }));
     const pending = within(card('Hyundai Creta')).getByRole('button', { name: 'Purchasing…' });
     expect(pending).toBeDisabled();
     await user.click(pending);
+    api.release('purchase');
 
     expect(await screen.findByRole('status')).toHaveTextContent('You purchased a Hyundai Creta');
     expect(within(card('Hyundai Creta')).getByText('5 in stock')).toBeInTheDocument();

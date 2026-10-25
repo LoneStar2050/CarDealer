@@ -109,12 +109,13 @@ describe('invoice download', () => {
   });
 
   it('downloads the invoice file with the signed-in user\'s token', async () => {
-    const { api, user } = renderAt('#orders', { purchases: orders, ordersDelay: 20 });
+    const { api, user } = renderAt('#orders', { purchases: orders, hold: ['invoice'] });
     const list = await within(history()).findByRole('list', { name: 'Orders' });
 
     await user.click(within(list).getByRole('button', { name: 'Download invoice INV-000001' }));
 
     expect(within(list).getByRole('button', { name: 'Download invoice INV-000001' })).toBeDisabled();
+    api.release('invoice');
     await waitFor(() => expect(clicked).toEqual([{ href: 'blob:invoice', download: 'INV-000001.txt' }]));
     const call = api.calls.find((c) => c.path === '/api/purchases/p1/invoice')!;
     expect(call).toMatchObject({ method: 'GET', token: USER_TOKEN });

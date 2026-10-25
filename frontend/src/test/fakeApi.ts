@@ -10,23 +10,26 @@ export interface FakeApiOptions {
   vehicles?: Vehicle[];
   /** Force a status/body for a "METHOD /path" key, e.g. "POST /api/vehicles/v1/purchase". */
   overrides?: Record<string, { status: number; body?: unknown }>;
-  /** Delay (ms) before responding to purchases, to observe pending states. */
-  purchaseDelay?: number;
+  /** Requests that wait until the test calls release(kind), to observe pending states without timing races. */
+  hold?: HoldKind[];
   /** Existing reviews per vehicle id. */
   reviews?: Record<string, Review[]>;
-  /** Delay (ms) before responding to review requests. */
-  reviewDelay?: number;
   /** Orders that already exist for the signed-in user. */
   purchases?: Purchase[];
   /** Delay (ms) before responding to order-history and invoice requests. */
   ordersDelay?: number;
 }
 
+/** Kinds of request a test can hold: loading reviews, posting a review, purchasing, downloading an invoice. */
+export type HoldKind = 'loadReviews' | 'postReview' | 'purchase' | 'invoice';
+
 export interface FakeApi {
   vehicles: Vehicle[];
   reviews: Record<string, Review[]>;
   purchases: Purchase[];
   calls: { method: string; path: string; body: unknown; token: string | null }[];
+  /** Lets held requests of this kind (see FakeApiOptions.hold) respond. */
+  release: (kind: HoldKind) => void;
 }
 
 export const ADMIN_TOKEN = 'admin-token';
@@ -93,12 +96,16 @@ const summaryOf = (reviews: Review[]) => ({
 });
 
 export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
+  const gates = new Map<HoldKind, () => void>();
+  const held = new Map<HoldKind, Promise<void>>();
+  for (const kind of options.hold ?? []) held.set(kind, new Promise((resolve) => gates.set(kind, resolve)));
   // Copy each vehicle so state changes (purchases, edits) never leak between tests.
   const api: FakeApi = {
     vehicles: (options.vehicles ?? []).map((v) => ({ ...v })),
     reviews: Object.fromEntries(Object.entries(options.reviews ?? {}).map(([id, list]) => [id, list.map((r) => ({ ...r }))])),
     purchases: (options.purchases ?? []).map((p) => ({ ...p })),
     calls: [],
+    release: (kind) => gates.get(kind)?.(),
   };
   const json = (status: number, body?: unknown) =>
     new Response(body === undefined ? null : JSON.stringify(body), {
@@ -139,6 +146,7 @@ export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
       const invoice = path.match(/^\/api\/purchases\/([^/]+)\/invoice$/);
       const order = invoice && api.purchases.find((p) => p.id === invoice[1]);
       if (!order) return json(404, { error: 'Order not found' });
+      await held.get('invoice');
       return new Response(`PRESTIGE MOTORS\nINVOICE\nInvoice number: ${order.invoiceNumber}\n`, {
         status: 200,
         headers: {
@@ -212,7 +220,7 @@ export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
     if (reviewsMatch) {
       const id = reviewsMatch[1]!;
       const reviewed = api.vehicles.find((v) => v.id === id);
-      if (options.reviewDelay) await new Promise((r) => setTimeout(r, options.reviewDelay));
+      await held.get(method === 'POST' ? 'postReview' : 'loadReviews');
       if (!reviewed) return json(404, { error: 'Vehicle not found' });
       const list = (api.reviews[id] ??= []);
       if (method === 'GET') return json(200, { reviews: list, summary: summaryOf(list) });
@@ -231,7 +239,7 @@ export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
     const action = match[2];
 
     if (action === 'purchase' && method === 'POST') {
-      if (options.purchaseDelay) await new Promise((r) => setTimeout(r, options.purchaseDelay));
+      await held.get('purchase');
       const quantity = body?.quantity ?? 1;
       if (target.quantity === 0) return json(409, { error: 'Vehicle is out of stock' });
       if (target.quantity < quantity) return json(409, { error: `Only ${target.quantity} units in stock` });

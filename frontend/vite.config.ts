@@ -14,5 +14,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    // Whole-app UI tests take ~0.5 s alone, but files run in parallel and on a busy
+    // machine single tests were measured at up to 5.06 s, over the 5 s default.
+    testTimeout: 15_000,
   },
 });
