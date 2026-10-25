@@ -5,6 +5,11 @@ import type { User } from './user.js';
 /** PostgreSQL error code for a unique-constraint violation. */
 const UNIQUE_VIOLATION = '23505';
 
+/** A user together with their password hash. For credential checks only; never send to clients. */
+export interface UserWithPasswordHash extends User {
+  passwordHash: string;
+}
+
 /** Data access for the users table. */
 export class UserRepository {
   constructor(private readonly pool: Pool) {}
@@ -28,5 +33,16 @@ export class UserRepository {
       }
       throw error;
     }
+  }
+
+  /** Finds a user by exact email match, including the password hash. */
+  async findByEmail(email: string): Promise<UserWithPasswordHash | null> {
+    const result = await this.pool.query<UserWithPasswordHash>(
+      `SELECT id, email, role, password_hash AS "passwordHash"
+       FROM users
+       WHERE email = $1`,
+      [email],
+    );
+    return result.rows[0] ?? null;
   }
 }
