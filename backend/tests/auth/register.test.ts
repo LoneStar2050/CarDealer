@@ -3,7 +3,7 @@ import request from 'supertest';
 import bcrypt from 'bcryptjs';
 import type { Express } from 'express';
 import type { Pool } from 'pg';
-import { createApp } from '../../src/app.js';
+import { createTestApp } from '../helpers/app.js';
 import { resetDatabase, setupTestDatabase } from '../helpers/db.js';
 
 describe('POST /api/auth/register', () => {
@@ -12,7 +12,7 @@ describe('POST /api/auth/register', () => {
 
   beforeAll(async () => {
     pool = await setupTestDatabase();
-    app = createApp({ pool });
+    app = createTestApp(pool);
   });
 
   beforeEach(async () => {

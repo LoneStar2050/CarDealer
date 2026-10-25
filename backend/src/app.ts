@@ -5,9 +5,17 @@ import { AuthService } from './auth/authService.js';
 import { UserRepository } from './auth/userRepository.js';
 import { errorHandler } from './errors/errorHandler.js';
 
+/** Settings for signing authentication tokens (from JWT_SECRET / JWT_EXPIRES_IN). */
+export interface JwtConfig {
+  secret: string;
+  /** Token lifetime, e.g. "1h". */
+  expiresIn: string;
+}
+
 /** External resources the application needs, injected for testability. */
 export interface AppDependencies {
   pool: Pool;
+  jwt: JwtConfig;
 }
 
 /** Builds the Express application without starting an HTTP server. */
