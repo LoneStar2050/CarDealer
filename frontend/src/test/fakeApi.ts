@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { Review, Vehicle } from '../api';
+import type { Purchase, Review, Vehicle } from '../api';
 
 /**
  * A small in-memory stand-in for the backend, used only by tests. It mirrors
@@ -16,11 +16,16 @@ export interface FakeApiOptions {
   reviews?: Record<string, Review[]>;
   /** Delay (ms) before responding to review requests. */
   reviewDelay?: number;
+  /** Orders that already exist for the signed-in user. */
+  purchases?: Purchase[];
+  /** Delay (ms) before responding to order-history and invoice requests. */
+  ordersDelay?: number;
 }
 
 export interface FakeApi {
   vehicles: Vehicle[];
   reviews: Record<string, Review[]>;
+  purchases: Purchase[];
   calls: { method: string; path: string; body: unknown; token: string | null }[];
 }
 
@@ -53,6 +58,22 @@ export function signInAs(role: 'admin' | 'user') {
   );
 }
 
+export function purchase(overrides: Partial<Purchase> = {}): Purchase {
+  return {
+    id: `p-${Math.random().toString(36).slice(2, 8)}`,
+    invoiceNumber: 'INV-000001',
+    vehicleId: 'v1',
+    make: 'Hyundai',
+    model: 'Creta',
+    category: 'SUV',
+    quantity: 1,
+    unitPrice: 1500000,
+    totalAmount: 1500000,
+    purchasedAt: '2026-10-22T11:15:00.000Z',
+    ...overrides,
+  };
+}
+
 export function review(overrides: Partial<Review> = {}): Review {
   return {
     id: `r-${Math.random().toString(36).slice(2, 8)}`,
@@ -76,6 +97,7 @@ export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
   const api: FakeApi = {
     vehicles: (options.vehicles ?? []).map((v) => ({ ...v })),
     reviews: Object.fromEntries(Object.entries(options.reviews ?? {}).map(([id, list]) => [id, list.map((r) => ({ ...r }))])),
+    purchases: (options.purchases ?? []).map((p) => ({ ...p })),
     calls: [],
   };
   const json = (status: number, body?: unknown) =>
@@ -108,8 +130,24 @@ export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
       return json(201, { user: { id: 'new-id', email: body.email, role: 'user' } });
     }
 
-    if (!path.startsWith('/api/vehicles')) return json(404, { error: 'Not found' });
+    if (!path.startsWith('/api/')) return json(404, { error: 'Not found' });
     if (token !== ADMIN_TOKEN && token !== USER_TOKEN) return json(401, { error: 'Authentication required' });
+
+    if (path.startsWith('/api/purchases')) {
+      if (options.ordersDelay) await new Promise((r) => setTimeout(r, options.ordersDelay));
+      if (path === '/api/purchases' && method === 'GET') return json(200, { purchases: api.purchases });
+      const invoice = path.match(/^\/api\/purchases\/([^/]+)\/invoice$/);
+      const order = invoice && api.purchases.find((p) => p.id === invoice[1]);
+      if (!order) return json(404, { error: 'Order not found' });
+      return new Response(`PRESTIGE MOTORS\nINVOICE\nInvoice number: ${order.invoiceNumber}\n`, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${order.invoiceNumber}.txt"`,
+        },
+      });
+    }
+    if (!path.startsWith('/api/vehicles')) return json(404, { error: 'Not found' });
     const isAdmin = token === ADMIN_TOKEN;
     const forbidden = () => json(403, { error: 'Admin access required' });
 
@@ -158,9 +196,24 @@ export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
 
     if (action === 'purchase' && method === 'POST') {
       if (options.purchaseDelay) await new Promise((r) => setTimeout(r, options.purchaseDelay));
+      const quantity = body?.quantity ?? 1;
       if (target.quantity === 0) return json(409, { error: 'Vehicle is out of stock' });
-      target.quantity -= 1;
-      return json(200, { vehicle: { ...target } });
+      if (target.quantity < quantity) return json(409, { error: `Only ${target.quantity} units in stock` });
+      target.quantity -= quantity;
+      const order = purchase({
+        id: `p-new-${api.purchases.length}`,
+        invoiceNumber: `INV-${String(api.purchases.length + 1).padStart(6, '0')}`,
+        vehicleId: target.id,
+        make: target.make,
+        model: target.model,
+        category: target.category,
+        quantity,
+        unitPrice: target.price,
+        totalAmount: target.price * quantity,
+        purchasedAt: new Date().toISOString(),
+      });
+      api.purchases.unshift(order);
+      return json(200, { vehicle: { ...target }, purchase: order });
     }
     if (!isAdmin) return forbidden();
     if (action === 'restock' && method === 'POST') {
