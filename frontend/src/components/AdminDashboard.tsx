@@ -134,7 +134,7 @@ function AnalyticsBody({ analytics: { sales, inventory } }: { analytics: Analyti
       </dl>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 lg:col-span-2">
+        <div className="min-w-0 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 lg:col-span-2">
           <h3 className="mb-3 text-lg font-bold text-slate-900">Top-selling vehicles</h3>
           {sales.topVehicles.length === 0 ? (
             <p className="py-6 text-center text-slate-500">No sales in this period.</p>
