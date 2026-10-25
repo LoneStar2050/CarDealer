@@ -19,6 +19,13 @@ export class ValidationError extends HttpError {
   }
 }
 
+/** The request lacks valid authentication credentials (401). */
+export class UnauthorizedError extends HttpError {
+  constructor(message: string) {
+    super(401, message);
+  }
+}
+
 /** The request conflicts with existing data, e.g. a duplicate email (409). */
 export class ConflictError extends HttpError {
   constructor(message: string) {

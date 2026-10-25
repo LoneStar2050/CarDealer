@@ -32,3 +32,26 @@ export function validateRegistration(body: unknown): RegistrationInput {
 
   return { email, password };
 }
+
+export interface LoginInput {
+  email: string;
+  password: string;
+}
+
+/**
+ * Validates a login request body. Only presence is checked: format and
+ * length rules apply at registration, and a wrong value is simply a
+ * failed login (401), not invalid input.
+ */
+export function validateLogin(body: unknown): LoginInput {
+  const { email, password } = (body ?? {}) as Record<string, unknown>;
+
+  if (typeof email !== 'string' || email.length === 0) {
+    throw new ValidationError('Email is required');
+  }
+  if (typeof password !== 'string' || password.length === 0) {
+    throw new ValidationError('Password is required');
+  }
+
+  return { email, password };
+}
