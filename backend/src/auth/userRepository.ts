@@ -1,18 +1,32 @@
 import type { Pool } from 'pg';
+import { ConflictError } from '../errors/httpErrors.js';
 import type { User } from './user.js';
+
+/** PostgreSQL error code for a unique-constraint violation. */
+const UNIQUE_VIOLATION = '23505';
 
 /** Data access for the users table. */
 export class UserRepository {
   constructor(private readonly pool: Pool) {}
 
-  /** Inserts a user with the database default role ("user"). */
+  /**
+   * Inserts a user with the database default role ("user").
+   * Throws a ConflictError if the email is already registered.
+   */
   async create(email: string, passwordHash: string): Promise<User> {
-    const result = await this.pool.query<User>(
-      `INSERT INTO users (email, password_hash)
-       VALUES ($1, $2)
-       RETURNING id, email, role`,
-      [email, passwordHash],
-    );
-    return result.rows[0]!;
+    try {
+      const result = await this.pool.query<User>(
+        `INSERT INTO users (email, password_hash)
+         VALUES ($1, $2)
+         RETURNING id, email, role`,
+        [email, passwordHash],
+      );
+      return result.rows[0]!;
+    } catch (error) {
+      if ((error as { code?: unknown }).code === UNIQUE_VIOLATION) {
+        throw new ConflictError('Email is already registered');
+      }
+      throw error;
+    }
   }
 }
