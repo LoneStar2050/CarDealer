@@ -1,4 +1,4 @@
-import type { Pool } from 'pg';
+import type { Queryable } from '../db/transaction.js';
 import { ConflictError, NotFoundError } from '../errors/httpErrors.js';
 import { ratingSummarySql, toAverageRating } from '../reviews/ratingSql.js';
 import type { Vehicle, VehicleInput, VehicleSearch } from './vehicle.js';
@@ -31,9 +31,12 @@ function toVehicle(row: VehicleRow): Vehicle {
   };
 }
 
-/** Data access for the vehicles table. All queries are parameterized. */
+/**
+ * Data access for the vehicles table. All queries are parameterized.
+ * Pass a transaction client instead of the pool to join a transaction.
+ */
 export class VehicleRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly db: Queryable) {}
 
   /**
    * Runs `source` (a SELECT, or an INSERT/UPDATE ... RETURNING *) as the CTE
@@ -41,7 +44,7 @@ export class VehicleRepository {
    * vehicles in the same shape. `suffix` may add ORDER BY clauses.
    */
   private async query(source: string, values: unknown[] = [], suffix = ''): Promise<Vehicle[]> {
-    const result = await this.pool.query<VehicleRow>(
+    const result = await this.db.query<VehicleRow>(
       `WITH v AS (${source})
        SELECT ${COLUMNS} FROM v
        CROSS JOIN LATERAL (${ratingSummarySql('v.id')}) r
@@ -65,7 +68,7 @@ export class VehicleRepository {
   }
 
   async exists(id: string): Promise<boolean> {
-    const result = await this.pool.query('SELECT 1 FROM vehicles WHERE id = $1', [id]);
+    const result = await this.db.query('SELECT 1 FROM vehicles WHERE id = $1', [id]);
     return result.rowCount !== 0;
   }
 
@@ -103,24 +106,28 @@ export class VehicleRepository {
 
   /** Throws NotFoundError if there is no such vehicle. */
   async delete(id: string): Promise<void> {
-    const result = await this.pool.query('DELETE FROM vehicles WHERE id = $1', [id]);
+    const result = await this.db.query('DELETE FROM vehicles WHERE id = $1', [id]);
     if (result.rowCount === 0) throw new NotFoundError('Vehicle not found');
   }
 
   /**
-   * Sells one unit. The stock check and decrement are a single statement,
-   * so concurrent purchases can never push the quantity below zero.
+   * Sells `quantity` units. The stock check and decrement are a single
+   * statement, so concurrent purchases can never push the quantity below
+   * zero. Throws NotFoundError or ConflictError (not enough stock).
    */
-  async purchase(id: string): Promise<Vehicle> {
+  async purchase(id: string, quantity = 1): Promise<Vehicle> {
     const [vehicle] = await this.query(
-      `UPDATE vehicles SET quantity = quantity - 1, updated_at = now()
-       WHERE id = $1 AND quantity > 0 RETURNING *`,
-      [id],
+      `UPDATE vehicles SET quantity = quantity - $2, updated_at = now()
+       WHERE id = $1 AND quantity >= $2 RETURNING *`,
+      [id, quantity],
     );
     if (vehicle) return vehicle;
 
-    if (!(await this.exists(id))) throw new NotFoundError('Vehicle not found');
-    throw new ConflictError('Vehicle is out of stock');
+    const current = await this.db.query<{ quantity: number }>('SELECT quantity FROM vehicles WHERE id = $1', [id]);
+    const inStock = current.rows[0]?.quantity;
+    if (inStock === undefined) throw new NotFoundError('Vehicle not found');
+    if (inStock === 0) throw new ConflictError('Vehicle is out of stock');
+    throw new ConflictError(`Only ${inStock} ${inStock === 1 ? 'unit' : 'units'} in stock`);
   }
 
   /** Adds stock. Throws NotFoundError if there is no such vehicle. */

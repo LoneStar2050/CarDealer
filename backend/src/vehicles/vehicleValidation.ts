@@ -1,4 +1,5 @@
 import { ValidationError } from '../errors/httpErrors.js';
+import { requireUuid } from '../validation/uuid.js';
 import type { VehicleInput, VehicleSearch } from './vehicle.js';
 
 type Fields = Record<string, unknown>;
@@ -27,14 +28,9 @@ function requireQuantity(fields: Fields, name = 'quantity'): number {
   return value;
 }
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Validates a vehicle id from the URL (400 if it is not a UUID). */
 export function validateVehicleId(id: unknown): string {
-  if (typeof id !== 'string' || !UUID_PATTERN.test(id)) {
-    throw new ValidationError('Vehicle id must be a valid UUID');
-  }
-  return id;
+  return requireUuid(id, 'Vehicle id must be a valid UUID');
 }
 
 /** Validates a request body containing all vehicle fields. */

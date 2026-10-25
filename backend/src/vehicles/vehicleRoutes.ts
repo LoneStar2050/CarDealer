@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import type { TokenService } from '../auth/tokenService.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import { authenticate, currentUser, requireAdmin } from '../middleware/auth.js';
+import type { PurchaseService } from '../purchases/purchaseService.js';
+import { validatePurchaseQuantity } from '../purchases/purchaseValidation.js';
 import type { VehicleRepository } from './vehicleRepository.js';
 import {
   validateRestock,
@@ -11,7 +13,11 @@ import {
 } from './vehicleValidation.js';
 
 /** HTTP routes for /api/vehicles. Every route requires a logged-in user. */
-export function createVehicleRouter(vehicles: VehicleRepository, tokens: TokenService): Router {
+export function createVehicleRouter(
+  vehicles: VehicleRepository,
+  purchases: PurchaseService,
+  tokens: TokenService,
+): Router {
   const router = Router();
   router.use(authenticate(tokens));
 
@@ -41,9 +47,11 @@ export function createVehicleRouter(vehicles: VehicleRepository, tokens: TokenSe
     res.status(204).end();
   });
 
+  // The buyer comes from the token and the price from the database.
   router.post('/:id/purchase', async (req, res) => {
-    const vehicle = await vehicles.purchase(validateVehicleId(req.params['id']));
-    res.json({ vehicle });
+    const id = validateVehicleId(req.params['id']);
+    const quantity = validatePurchaseQuantity(req.body);
+    res.json(await purchases.purchase(currentUser(res).id, id, quantity));
   });
 
   router.post('/:id/restock', requireAdmin, async (req, res) => {

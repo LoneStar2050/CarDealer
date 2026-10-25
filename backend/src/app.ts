@@ -5,6 +5,8 @@ import { AuthService } from './auth/authService.js';
 import { TokenService, type JwtConfig } from './auth/tokenService.js';
 import { UserRepository } from './auth/userRepository.js';
 import { errorHandler } from './errors/errorHandler.js';
+import { createPurchaseRouter } from './purchases/purchaseRoutes.js';
+import { PurchaseService } from './purchases/purchaseService.js';
 import { ReviewRepository } from './reviews/reviewRepository.js';
 import { createReviewRouter } from './reviews/reviewRoutes.js';
 import { ReviewService } from './reviews/reviewService.js';
@@ -31,7 +33,9 @@ export function createApp({ pool, jwt }: AppDependencies): Express {
   const reviewService = new ReviewService(new ReviewRepository(pool), vehicles);
   // Mounted before the vehicle router so its own routes handle /:id/reviews.
   app.use('/api/vehicles/:id/reviews', createReviewRouter(reviewService, tokens));
-  app.use('/api/vehicles', createVehicleRouter(vehicles, tokens));
+  const purchases = new PurchaseService(pool);
+  app.use('/api/vehicles', createVehicleRouter(vehicles, purchases, tokens));
+  app.use('/api/purchases', createPurchaseRouter(purchases, tokens));
 
   // Must be registered after all routes.
   app.use(errorHandler);
