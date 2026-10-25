@@ -161,7 +161,9 @@ export function installFakeApi(options: FakeApiOptions = {}): FakeApi {
           has('model', v.model) &&
           has('category', v.category) &&
           (!q.get('minPrice') || v.price >= Number(q.get('minPrice'))) &&
-          (!q.get('maxPrice') || v.price <= Number(q.get('maxPrice'))),
+          (!q.get('maxPrice') || v.price <= Number(q.get('maxPrice'))) &&
+          (q.get('availability') !== 'in_stock' || v.quantity > 0) &&
+          (q.get('availability') !== 'out_of_stock' || v.quantity === 0),
       );
       return json(200, { vehicles: results });
     }
