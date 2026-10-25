@@ -24,6 +24,18 @@ const SCHEMA = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
+
+  -- One review per user and vehicle; the unique index also serves
+  -- "all reviews of a vehicle" lookups.
+  CREATE TABLE IF NOT EXISTS reviews (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vehicle_id UUID NOT NULL REFERENCES vehicles (id) ON DELETE CASCADE,
+    user_id    UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    rating     SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    comment    TEXT NOT NULL CHECK (char_length(comment) BETWEEN 1 AND 1000),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (vehicle_id, user_id)
+  );
 `;
 
 /** Creates all application tables if they do not already exist. */

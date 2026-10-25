@@ -1,9 +1,7 @@
 import type { Pool } from 'pg';
+import { isUniqueViolation } from '../db/postgresErrors.js';
 import { ConflictError } from '../errors/httpErrors.js';
 import type { User } from './user.js';
-
-/** PostgreSQL error code for a unique-constraint violation. */
-const UNIQUE_VIOLATION = '23505';
 
 /** A user together with their password hash. For credential checks only; never send to clients. */
 export interface UserWithPasswordHash extends User {
@@ -28,7 +26,7 @@ export class UserRepository {
       );
       return result.rows[0]!;
     } catch (error) {
-      if ((error as { code?: unknown }).code === UNIQUE_VIOLATION) {
+      if (isUniqueViolation(error)) {
         throw new ConflictError('Email is already registered');
       }
       throw error;

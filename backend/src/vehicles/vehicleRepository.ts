@@ -1,9 +1,11 @@
 import type { Pool } from 'pg';
 import { ConflictError, NotFoundError } from '../errors/httpErrors.js';
+import { ratingSummarySql, toAverageRating } from '../reviews/ratingSql.js';
 import type { Vehicle, VehicleInput, VehicleSearch } from './vehicle.js';
 
-/** Columns returned for every vehicle query. */
-const COLUMNS = 'id, make, model, category, price, quantity';
+/** Columns returned for every vehicle query, read from the CTE "v" and its ratings "r". */
+const COLUMNS = `v.id, v.make, v.model, v.category, v.price, v.quantity,
+  r.average_rating, r.review_count`;
 
 interface VehicleRow {
   id: string;
@@ -12,31 +14,59 @@ interface VehicleRow {
   category: string;
   price: string; // PostgreSQL NUMERIC arrives as a string
   quantity: number;
+  average_rating: string | null;
+  review_count: number;
 }
 
 function toVehicle(row: VehicleRow): Vehicle {
-  return { ...row, price: Number(row.price) };
+  return {
+    id: row.id,
+    make: row.make,
+    model: row.model,
+    category: row.category,
+    price: Number(row.price),
+    quantity: row.quantity,
+    averageRating: toAverageRating(row.average_rating),
+    reviewCount: row.review_count,
+  };
 }
 
 /** Data access for the vehicles table. All queries are parameterized. */
 export class VehicleRepository {
   constructor(private readonly pool: Pool) {}
 
-  async create(input: VehicleInput): Promise<Vehicle> {
+  /**
+   * Runs `source` (a SELECT, or an INSERT/UPDATE ... RETURNING *) as the CTE
+   * "v" and adds each vehicle's rating summary, so every endpoint returns
+   * vehicles in the same shape. `suffix` may add ORDER BY clauses.
+   */
+  private async query(source: string, values: unknown[] = [], suffix = ''): Promise<Vehicle[]> {
     const result = await this.pool.query<VehicleRow>(
+      `WITH v AS (${source})
+       SELECT ${COLUMNS} FROM v
+       CROSS JOIN LATERAL (${ratingSummarySql('v.id')}) r
+       ${suffix}`,
+      values,
+    );
+    return result.rows.map(toVehicle);
+  }
+
+  async create(input: VehicleInput): Promise<Vehicle> {
+    const [vehicle] = await this.query(
       `INSERT INTO vehicles (make, model, category, price, quantity)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING ${COLUMNS}`,
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [input.make, input.model, input.category, input.price, input.quantity],
     );
-    return toVehicle(result.rows[0]!);
+    return vehicle!;
   }
 
   async findAll(): Promise<Vehicle[]> {
-    const result = await this.pool.query<VehicleRow>(
-      `SELECT ${COLUMNS} FROM vehicles ORDER BY created_at, id`,
-    );
-    return result.rows.map(toVehicle);
+    return this.query('SELECT * FROM vehicles', [], 'ORDER BY v.created_at, v.id');
+  }
+
+  async exists(id: string): Promise<boolean> {
+    const result = await this.pool.query('SELECT 1 FROM vehicles WHERE id = $1', [id]);
+    return result.rowCount !== 0;
   }
 
   async search(filters: VehicleSearch): Promise<Vehicle[]> {
@@ -56,23 +86,19 @@ export class VehicleRepository {
     if (filters.maxPrice !== undefined) add((p) => `price <= ${p}`, filters.maxPrice);
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-    const result = await this.pool.query<VehicleRow>(
-      `SELECT ${COLUMNS} FROM vehicles ${where} ORDER BY created_at, id`,
-      values,
-    );
-    return result.rows.map(toVehicle);
+    return this.query(`SELECT * FROM vehicles ${where}`, values, 'ORDER BY v.created_at, v.id');
   }
 
   /** Updates only the given fields. Throws NotFoundError if there is no such vehicle. */
   async update(id: string, changes: Partial<VehicleInput>): Promise<Vehicle> {
     const entries = Object.entries(changes);
     const assignments = entries.map(([column], index) => `${column} = $${index + 2}`);
-    const result = await this.pool.query<VehicleRow>(
+    const [vehicle] = await this.query(
       `UPDATE vehicles SET ${assignments.join(', ')}, updated_at = now()
-       WHERE id = $1 RETURNING ${COLUMNS}`,
+       WHERE id = $1 RETURNING *`,
       [id, ...entries.map(([, value]) => value)],
     );
-    return this.foundOrThrow(result.rows[0]);
+    return this.foundOrThrow(vehicle);
   }
 
   /** Throws NotFoundError if there is no such vehicle. */
@@ -86,30 +112,29 @@ export class VehicleRepository {
    * so concurrent purchases can never push the quantity below zero.
    */
   async purchase(id: string): Promise<Vehicle> {
-    const result = await this.pool.query<VehicleRow>(
+    const [vehicle] = await this.query(
       `UPDATE vehicles SET quantity = quantity - 1, updated_at = now()
-       WHERE id = $1 AND quantity > 0 RETURNING ${COLUMNS}`,
+       WHERE id = $1 AND quantity > 0 RETURNING *`,
       [id],
     );
-    if (result.rows[0]) return toVehicle(result.rows[0]);
+    if (vehicle) return vehicle;
 
-    const exists = await this.pool.query('SELECT 1 FROM vehicles WHERE id = $1', [id]);
-    if (exists.rowCount === 0) throw new NotFoundError('Vehicle not found');
+    if (!(await this.exists(id))) throw new NotFoundError('Vehicle not found');
     throw new ConflictError('Vehicle is out of stock');
   }
 
   /** Adds stock. Throws NotFoundError if there is no such vehicle. */
   async restock(id: string, amount: number): Promise<Vehicle> {
-    const result = await this.pool.query<VehicleRow>(
+    const [vehicle] = await this.query(
       `UPDATE vehicles SET quantity = quantity + $2, updated_at = now()
-       WHERE id = $1 RETURNING ${COLUMNS}`,
+       WHERE id = $1 RETURNING *`,
       [id, amount],
     );
-    return this.foundOrThrow(result.rows[0]);
+    return this.foundOrThrow(vehicle);
   }
 
-  private foundOrThrow(row: VehicleRow | undefined): Vehicle {
-    if (!row) throw new NotFoundError('Vehicle not found');
-    return toVehicle(row);
+  private foundOrThrow(vehicle: Vehicle | undefined): Vehicle {
+    if (!vehicle) throw new NotFoundError('Vehicle not found');
+    return vehicle;
   }
 }
