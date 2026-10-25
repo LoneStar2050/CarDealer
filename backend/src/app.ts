@@ -1,5 +1,7 @@
 import express, { type Express } from 'express';
 import type { Pool } from 'pg';
+import { createAdminRouter } from './admin/adminRoutes.js';
+import { AnalyticsRepository } from './admin/analyticsRepository.js';
 import { createAuthRouter } from './auth/authRoutes.js';
 import { AuthService } from './auth/authService.js';
 import { TokenService, type JwtConfig } from './auth/tokenService.js';
@@ -36,6 +38,7 @@ export function createApp({ pool, jwt }: AppDependencies): Express {
   const purchases = new PurchaseService(pool);
   app.use('/api/vehicles', createVehicleRouter(vehicles, purchases, tokens));
   app.use('/api/purchases', createPurchaseRouter(purchases, tokens));
+  app.use('/api/admin', createAdminRouter(new AnalyticsRepository(pool), tokens));
 
   // Must be registered after all routes.
   app.use(errorHandler);
