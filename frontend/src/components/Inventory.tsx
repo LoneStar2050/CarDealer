@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { api, ApiError, type Session, type Vehicle, type VehicleInput } from '../api';
+import { api, ApiError, type RatingSummary, type Session, type Vehicle, type VehicleInput } from '../api';
 import { useCompare } from '../hooks/useCompare';
 import { useFavorites } from '../hooks/useFavorites';
 import { DeleteDialog, RestockDialog, VehicleFormDialog } from './AdminDialogs';
@@ -8,6 +8,7 @@ import { EMPTY_FILTERS, Filters, type FilterValues, type SortOrder } from './Fil
 import { InventoryStats } from './InventoryStats';
 import { Hero } from './Layout';
 import { StockTable } from './StockTable';
+import { Reviews } from './Reviews';
 import { NoticeBanner, Spinner, ui, type Notice } from './ui';
 import { VehicleCard } from './VehicleCard';
 import { VehicleDetails } from './VehicleDetails';
@@ -132,6 +133,18 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
     void load(EMPTY_FILTERS);
   }
 
+  /** Applies a changed vehicle to both the full list and the current results. */
+  function replaceVehicle(id: string, change: (v: Vehicle) => Vehicle) {
+    const replace = (list: Vehicle[]) => list.map((v) => (v.id === id ? change(v) : v));
+    setAll(replace);
+    setResults(replace);
+  }
+
+  const updateRating = useCallback(
+    (id: string, summary: RatingSummary) => replaceVehicle(id, (v) => ({ ...v, ...summary })),
+    [],
+  );
+
   async function purchase(vehicle: Vehicle) {
     if (pendingPurchases.current.has(vehicle.id)) return; // ignore duplicate clicks
     pendingPurchases.current.add(vehicle.id);
@@ -139,9 +152,7 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
     setNotice(null);
     try {
       const updated = (await api.purchase(session.token, vehicle.id)).vehicle;
-      const replace = (list: Vehicle[]) => list.map((v) => (v.id === updated.id ? updated : v));
-      setAll(replace);
-      setResults(replace);
+      replaceVehicle(updated.id, () => updated);
       setNotice({ kind: 'success', text: `You purchased a ${nameOf(updated)}. ${updated.quantity} left in stock.` });
     } catch (error) {
       fail(error);
@@ -198,7 +209,15 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
             onToggleFavorite={() => favorites.toggle(details.id)}
             onToggleCompare={() => compare.toggle(details.id)}
             onBack={closeDetails}
-          />
+          >
+            <Reviews
+              key={details.id}
+              token={session.token}
+              vehicleId={details.id}
+              onSummaryChange={(summary) => updateRating(details.id, summary)}
+              onSessionExpired={onSessionExpired}
+            />
+          </VehicleDetails>
         </main>
         {compareTray}
       </>

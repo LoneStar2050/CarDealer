@@ -8,8 +8,25 @@ export interface Vehicle {
   category: string;
   price: number;
   quantity: number;
+  /** Mean review rating (one decimal), or null when unreviewed. */
+  averageRating: number | null;
+  reviewCount: number;
+  /** When the vehicle was listed (ISO 8601). */
+  createdAt: string;
 }
-export type VehicleInput = Omit<Vehicle, 'id'>;
+/** The fields an admin can set; the rest are computed by the server. */
+export type VehicleInput = Pick<Vehicle, 'make' | 'model' | 'category' | 'price' | 'quantity'>;
+export interface RatingSummary { averageRating: number | null; reviewCount: number }
+export interface Review {
+  id: string;
+  rating: number;
+  comment: string;
+  /** Masked by the server, e.g. "b***@example.com". */
+  author: string;
+  isOwn: boolean;
+  createdAt: string;
+}
+export interface ReviewInput { rating: number; comment: string }
 export interface Session { token: string; user: User }
 
 /** An API error carrying the HTTP status and the server's error message. */
@@ -62,6 +79,10 @@ export const api = {
     request<void>(`/vehicles/${id}`, { method: 'DELETE', token }),
   purchase: (token: string, id: string) =>
     request<{ vehicle: Vehicle }>(`/vehicles/${id}/purchase`, { method: 'POST', token }),
+  listReviews: (token: string, vehicleId: string) =>
+    request<{ reviews: Review[]; summary: RatingSummary }>(`/vehicles/${vehicleId}/reviews`, { token }),
+  createReview: (token: string, vehicleId: string, input: ReviewInput) =>
+    request<{ review: Review; summary: RatingSummary }>(`/vehicles/${vehicleId}/reviews`, { method: 'POST', token, body: input }),
   restock: (token: string, id: string, quantity: number) =>
     request<{ vehicle: Vehicle }>(`/vehicles/${id}/restock`, { method: 'POST', token, body: { quantity } }),
 };

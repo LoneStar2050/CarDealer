@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react';
 import type { Vehicle } from '../api';
 import { formatRupees } from '../format';
+import { RatingBadge } from './Rating';
 import { ui } from './ui';
 import { CompareButton, FavoriteButton, PurchaseButton } from './VehicleCard';
 import { VehicleImage } from './VehicleImage';
@@ -14,6 +16,8 @@ interface VehicleDetailsProps {
   onToggleFavorite: () => void;
   onToggleCompare: () => void;
   onBack: () => void;
+  /** Extra content below the vehicle, such as customer reviews. */
+  children?: ReactNode;
 }
 
 /** Dedicated view for a single vehicle. */
@@ -34,6 +38,7 @@ export function VehicleDetails(props: VehicleDetailsProps) {
             <div>
               <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{vehicle.category}</span>
               <h2 className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">{name}</h2>
+              <div className="mt-2"><RatingBadge averageRating={vehicle.averageRating} reviewCount={vehicle.reviewCount} /></div>
             </div>
             <FavoriteButton name={name} favorite={props.favorite} onToggle={props.onToggleFavorite} className="h-11 w-11" />
           </div>
@@ -65,6 +70,7 @@ export function VehicleDetails(props: VehicleDetailsProps) {
           </div>
         </div>
       </div>
+      {props.children}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import type { Vehicle } from '../api';
 import { formatRupees } from '../format';
+import { RatingBadge } from './Rating';
 import { Spinner, ui } from './ui';
 import { VehicleImage } from './VehicleImage';
 
@@ -113,6 +114,7 @@ export function VehicleCard(props: VehicleCardProps) {
           <div>
             <p className="text-sm font-medium text-slate-500">{vehicle.make}</p>
             <h3 className="text-lg font-bold text-slate-900">{vehicle.model}</h3>
+            <div className="mt-1"><RatingBadge averageRating={vehicle.averageRating} reviewCount={vehicle.reviewCount} /></div>
           </div>
           <FavoriteButton name={name} favorite={favorite} onToggle={props.onToggleFavorite} />
         </div>
