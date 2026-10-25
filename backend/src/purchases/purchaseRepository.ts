@@ -67,6 +67,17 @@ export class PurchaseRepository {
     return result.rows.map(toPurchase);
   }
 
+  /** Like findForUser, plus the buyer's email for the invoice. */
+  async findForUserWithBuyerEmail(id: string, userId: string): Promise<{ purchase: Purchase; buyerEmail: string } | null> {
+    const result = await this.db.query<PurchaseRow & { buyer_email: string }>(
+      `SELECT ${COLUMNS}, (SELECT email FROM users WHERE users.id = purchases.user_id) AS buyer_email
+       FROM purchases WHERE id = $1 AND user_id = $2`,
+      [id, userId],
+    );
+    const row = result.rows[0];
+    return row ? { purchase: toPurchase(row), buyerEmail: row.buyer_email } : null;
+  }
+
   /** One order, only if it belongs to the user; otherwise null. */
   async findForUser(id: string, userId: string): Promise<Purchase | null> {
     const result = await this.db.query<PurchaseRow>(

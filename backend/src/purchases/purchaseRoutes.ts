@@ -18,5 +18,19 @@ export function createPurchaseRouter(purchases: PurchaseService, tokens: TokenSe
     res.json({ purchase: await purchases.findForUser(id, currentUser(res).id) });
   });
 
+  router.get('/:id/invoice', async (req, res) => {
+    const id = validatePurchaseId(req.params['id']);
+    const invoice = await purchases.invoiceFor(id, currentUser(res).id);
+    res
+      .status(200)
+      .set({
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${invoice.filename}"`,
+        // Invoices contain personal data: never cache them.
+        'Cache-Control': 'no-store',
+      })
+      .send(invoice.content);
+  });
+
   return router;
 }

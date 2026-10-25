@@ -3,6 +3,7 @@ import { withTransaction } from '../db/transaction.js';
 import { NotFoundError } from '../errors/httpErrors.js';
 import type { Vehicle } from '../vehicles/vehicle.js';
 import { VehicleRepository } from '../vehicles/vehicleRepository.js';
+import { renderInvoice, type InvoiceFile } from './invoice.js';
 import type { Purchase } from './purchase.js';
 import { PurchaseRepository } from './purchaseRepository.js';
 
@@ -37,5 +38,12 @@ export class PurchaseService {
     const purchase = await new PurchaseRepository(this.pool).findForUser(id, userId);
     if (!purchase) throw new NotFoundError('Order not found');
     return purchase;
+  }
+
+  /** The invoice of one of the user's own orders; NotFoundError otherwise. */
+  async invoiceFor(id: string, userId: string): Promise<InvoiceFile> {
+    const found = await new PurchaseRepository(this.pool).findForUserWithBuyerEmail(id, userId);
+    if (!found) throw new NotFoundError('Order not found');
+    return renderInvoice(found.purchase, found.buyerEmail);
   }
 }
