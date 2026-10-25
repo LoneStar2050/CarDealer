@@ -220,6 +220,23 @@ describe('purchasing', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Vehicle is out of stock');
   });
+
+  it('refreshes a vehicle that sold out after the page loaded, keeping the error', async () => {
+    const api = await renderSignedIn('user', [{ ...creta, quantity: 1 }]);
+    const user = userEvent.setup();
+    expect(within(card('Hyundai Creta')).getByText('1 in stock')).toBeInTheDocument();
+
+    // Another buyer takes the last unit after the inventory was loaded.
+    api.vehicles[0]!.quantity = 0;
+    await user.click(within(card('Hyundai Creta')).getByRole('button', { name: 'Purchase' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Vehicle is out of stock');
+    const creta0 = card('Hyundai Creta');
+    expect(await within(creta0).findByText('Out of stock')).toBeInTheDocument();
+    expect(within(creta0).queryByText('1 in stock')).not.toBeInTheDocument();
+    expect(within(creta0).getByRole('button', { name: 'Purchase' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('Vehicle is out of stock');
+  });
 });
 
 describe('admin controls', () => {
