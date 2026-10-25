@@ -63,9 +63,15 @@ describe('Vehicles API', () => {
         .send(corolla);
 
       expect(response.status).toBe(201);
-      // A new vehicle has no reviews yet.
+      // A new vehicle has no reviews yet and records when it was listed.
       expect(response.body).toEqual({
-        vehicle: { id: expect.any(String), ...corolla, averageRating: null, reviewCount: 0 },
+        vehicle: {
+          id: expect.any(String),
+          ...corolla,
+          averageRating: null,
+          reviewCount: 0,
+          createdAt: expect.any(String),
+        },
       });
     });
 
