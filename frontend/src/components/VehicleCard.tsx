@@ -5,17 +5,19 @@ import { Spinner, ui } from './ui';
 import { VehicleImage } from './VehicleImage';
 
 /** Purchase button shared by the card and the details view. */
-export function PurchaseButton({ vehicle, purchasing, onPurchase, className = '' }: {
+export function PurchaseButton({ vehicle, purchasing, onPurchase, disabled = false, className = '' }: {
   vehicle: Vehicle;
   purchasing: boolean;
   onPurchase: () => void;
+  /** Extra reason to disable, e.g. an invalid quantity. */
+  disabled?: boolean;
   className?: string;
 }) {
   return (
     <button
       type="button"
       className={`${ui.button} ${ui.accent} py-2.5 ${className}`}
-      disabled={vehicle.quantity === 0 || purchasing}
+      disabled={vehicle.quantity === 0 || purchasing || disabled}
       onClick={onPurchase}
     >
       {purchasing ? (<><Spinner /> Purchasing…</>) : 'Purchase'}

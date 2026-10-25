@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import type { Vehicle } from '../api';
 import { formatRupees } from '../format';
 import { RatingBadge } from './Rating';
@@ -12,7 +12,8 @@ interface VehicleDetailsProps {
   favorite: boolean;
   comparing: boolean;
   compareFull: boolean;
-  onPurchase: () => void;
+  /** Buys the chosen number of units; resolves true on success. */
+  onPurchase: (quantity: number) => Promise<boolean>;
   onToggleFavorite: () => void;
   onToggleCompare: () => void;
   onBack: () => void;
@@ -20,11 +21,24 @@ interface VehicleDetailsProps {
   children?: ReactNode;
 }
 
+/** The most units one order may contain (the backend enforces the same limit). */
+const MAX_PURCHASE_QUANTITY = 100;
+
 /** Dedicated view for a single vehicle. */
 export function VehicleDetails(props: VehicleDetailsProps) {
   const { vehicle } = props;
   const name = `${vehicle.make} ${vehicle.model}`;
   const outOfStock = vehicle.quantity === 0;
+  const [quantityText, setQuantityText] = useState('1');
+  const quantityId = useId();
+  const quantity = Number(quantityText);
+  const validQuantity = Number.isInteger(quantity) && quantity >= 1;
+  const tooMany = validQuantity && quantity > vehicle.quantity;
+  const maxQuantity = Math.min(vehicle.quantity, MAX_PURCHASE_QUANTITY);
+
+  async function purchase() {
+    if (await props.onPurchase(quantity)) setQuantityText('1');
+  }
 
   return (
     <section aria-label="Vehicle details" className="space-y-6">
@@ -64,8 +78,43 @@ export function VehicleDetails(props: VehicleDetailsProps) {
             </p>
           </div>
 
+          {!outOfStock && (
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label htmlFor={quantityId} className={ui.label}>Quantity</label>
+                <input
+                  id={quantityId}
+                  type="number"
+                  min={1}
+                  max={maxQuantity}
+                  step={1}
+                  className={`${ui.input} w-24`}
+                  value={quantityText}
+                  aria-invalid={!validQuantity || tooMany ? true : undefined}
+                  onChange={(e) => setQuantityText(e.target.value)}
+                />
+              </div>
+              <p className="pb-2 text-sm text-slate-600" aria-live="polite">
+                {tooMany ? (
+                  <span className="font-semibold text-red-600">Only {vehicle.quantity} in stock</span>
+                ) : validQuantity ? (
+                  // With one unit the total would just repeat the price.
+                  quantity > 1 && <span className="font-semibold text-slate-900">Total: {formatRupees(vehicle.price * quantity)}</span>
+                ) : (
+                  <span className="font-semibold text-red-600">Enter a quantity of at least 1</span>
+                )}
+              </p>
+            </div>
+          )}
+
           <div className="flex gap-3">
-            <PurchaseButton vehicle={vehicle} purchasing={props.purchasing} onPurchase={props.onPurchase} className="flex-1 py-3 text-base" />
+            <PurchaseButton
+              vehicle={vehicle}
+              purchasing={props.purchasing}
+              disabled={!validQuantity || tooMany}
+              onPurchase={() => void purchase()}
+              className="flex-1 py-3 text-base"
+            />
             <CompareButton name={name} selected={props.comparing} disabled={!props.comparing && props.compareFull} onToggle={props.onToggleCompare} />
           </div>
         </div>

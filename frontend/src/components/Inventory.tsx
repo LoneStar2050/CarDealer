@@ -83,7 +83,10 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
   );
 
   useEffect(() => {
-    void load(EMPTY_FILTERS);
+    // Arriving from another page via #inventory or #manage: scroll there once rendered.
+    void load(EMPTY_FILTERS).then(() => {
+      if (window.location.hash && !detailsIdFromHash()) scrollToHashTarget();
+    });
   }, [load]);
 
   // Follow the URL: #vehicle/<id> shows details; any other link (#inventory, #manage) shows the list.
@@ -145,17 +148,25 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
     [],
   );
 
-  async function purchase(vehicle: Vehicle) {
-    if (pendingPurchases.current.has(vehicle.id)) return; // ignore duplicate clicks
+  /** Buys `quantity` units (one from a card). Resolves true on success. */
+  async function purchase(vehicle: Vehicle, quantity?: number): Promise<boolean> {
+    if (pendingPurchases.current.has(vehicle.id)) return false; // ignore duplicate clicks
     pendingPurchases.current.add(vehicle.id);
     setPurchasing(new Set(pendingPurchases.current));
     setNotice(null);
     try {
-      const updated = (await api.purchase(session.token, vehicle.id)).vehicle;
+      const result = await api.purchase(session.token, vehicle.id, quantity);
+      const updated = result.vehicle;
       replaceVehicle(updated.id, () => updated);
-      setNotice({ kind: 'success', text: `You purchased a ${nameOf(updated)}. ${updated.quantity} left in stock.` });
+      const bought = result.purchase.quantity === 1 ? `a ${nameOf(updated)}` : `${result.purchase.quantity} × ${nameOf(updated)}`;
+      setNotice({
+        kind: 'success',
+        text: `You purchased ${bought} (order ${result.purchase.invoiceNumber}). ${updated.quantity} left in stock.`,
+      });
+      return true;
     } catch (error) {
       fail(error);
+      return false;
     } finally {
       pendingPurchases.current.delete(vehicle.id);
       setPurchasing(new Set(pendingPurchases.current));
@@ -205,7 +216,7 @@ export function Inventory({ session, onSessionExpired }: { session: Session; onS
             favorite={favorites.isFavorite(details.id)}
             comparing={compare.isSelected(details.id)}
             compareFull={compare.isFull}
-            onPurchase={() => void purchase(details)}
+            onPurchase={(quantity) => purchase(details, quantity)}
             onToggleFavorite={() => favorites.toggle(details.id)}
             onToggleCompare={() => compare.toggle(details.id)}
             onBack={closeDetails}

@@ -27,6 +27,22 @@ export interface Review {
   createdAt: string;
 }
 export interface ReviewInput { rating: number; comment: string }
+/** A completed order. Prices and totals are calculated by the server. */
+export interface Purchase {
+  id: string;
+  invoiceNumber: string;
+  /** Null if the vehicle has since been deleted. */
+  vehicleId: string | null;
+  make: string;
+  model: string;
+  category: string;
+  quantity: number;
+  unitPrice: number;
+  totalAmount: number;
+  purchasedAt: string;
+}
+/** A file returned by the API, e.g. an invoice. */
+export interface DownloadedFile { blob: Blob; filename: string }
 export interface Session { token: string; user: User }
 
 /** An API error carrying the HTTP status and the server's error message. */
@@ -36,8 +52,10 @@ export class ApiError extends Error {
   }
 }
 
-/** Sends a JSON request to the backend and returns the parsed body. */
-async function request<T>(path: string, options: { method?: string; token?: string; body?: unknown } = {}): Promise<T> {
+interface RequestOptions { method?: string; token?: string; body?: unknown }
+
+/** Sends a request to the backend; throws an ApiError for network failures and error statuses. */
+async function send(path: string, options: RequestOptions = {}): Promise<Response> {
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers['Content-Type'] = 'application/json';
   if (options.token) headers['Authorization'] = `Bearer ${options.token}`;
@@ -53,12 +71,26 @@ async function request<T>(path: string, options: { method?: string; token?: stri
     throw new ApiError(0, 'Cannot reach the server. Is the backend running?');
   }
 
-  if (response.status === 204) return undefined as T;
-  const data = await response.json().catch(() => null);
   if (!response.ok) {
+    const data = await response.json().catch(() => null);
     throw new ApiError(response.status, data?.error ?? `Request failed (${response.status})`);
   }
-  return data as T;
+  return response;
+}
+
+/** Sends a JSON request to the backend and returns the parsed body. */
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const response = await send(path, options);
+  if (response.status === 204) return undefined as T;
+  return (await response.json().catch(() => null)) as T;
+}
+
+/** Downloads a file, taking its name from the Content-Disposition header. */
+async function requestFile(path: string, token: string, fallbackName: string): Promise<DownloadedFile> {
+  const response = await send(path, { token });
+  const disposition = response.headers.get('Content-Disposition') ?? '';
+  const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? fallbackName;
+  return { blob: await response.blob(), filename };
 }
 
 export const api = {
@@ -77,8 +109,16 @@ export const api = {
     request<{ vehicle: Vehicle }>(`/vehicles/${id}`, { method: 'PUT', token, body: input }),
   deleteVehicle: (token: string, id: string) =>
     request<void>(`/vehicles/${id}`, { method: 'DELETE', token }),
-  purchase: (token: string, id: string) =>
-    request<{ vehicle: Vehicle }>(`/vehicles/${id}/purchase`, { method: 'POST', token }),
+  /** Buys `quantity` units (1 if omitted). The server decides the price. */
+  purchase: (token: string, id: string, quantity?: number) =>
+    request<{ vehicle: Vehicle; purchase: Purchase }>(`/vehicles/${id}/purchase`, {
+      method: 'POST',
+      token,
+      body: quantity === undefined ? undefined : { quantity },
+    }),
+  listPurchases: (token: string) => request<{ purchases: Purchase[] }>('/purchases', { token }),
+  downloadInvoice: (token: string, order: Purchase) =>
+    requestFile(`/purchases/${order.id}/invoice`, token, `${order.invoiceNumber}.txt`),
   listReviews: (token: string, vehicleId: string) =>
     request<{ reviews: Review[]; summary: RatingSummary }>(`/vehicles/${vehicleId}/reviews`, { token }),
   createReview: (token: string, vehicleId: string, input: ReviewInput) =>

@@ -3,7 +3,9 @@ import type { Session } from './api';
 import { AuthPage } from './components/AuthPage';
 import { Inventory } from './components/Inventory';
 import { Navbar } from './components/Layout';
+import { PurchaseHistory } from './components/PurchaseHistory';
 import type { Notice } from './components/ui';
+import { useHashRoute } from './hooks/useHashRoute';
 
 const SESSION_KEY = 'dealership-session';
 
@@ -15,10 +17,11 @@ function loadSession(): Session | null {
   }
 }
 
-/** Root component: holds the JWT session and switches between sign-in and the dealership view. */
+/** Root component: holds the JWT session and switches between sign-in and the dealership pages. */
 export function App() {
   const [session, setSession] = useState<Session | null>(loadSession);
   const [authNotice, setAuthNotice] = useState<Notice>(null);
+  const route = useHashRoute();
 
   const signIn = (next: Session) => {
     localStorage.setItem(SESSION_KEY, JSON.stringify(next));
@@ -38,7 +41,9 @@ export function App() {
   return (
     <div className="min-h-screen bg-slate-100">
       <Navbar user={session?.user ?? null} onLogout={() => signOut()} />
-      {session ? (
+      {session && route === 'orders' ? (
+        <PurchaseHistory key={session.token} session={session} onSessionExpired={expire} />
+      ) : session ? (
         <Inventory key={session.token} session={session} onSessionExpired={expire} />
       ) : (
         <AuthPage key={authNotice?.text ?? 'auth'} notice={authNotice} onSignIn={signIn} />

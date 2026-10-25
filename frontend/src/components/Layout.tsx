@@ -8,16 +8,18 @@ export const BRAND = 'Prestige Motors';
 export function Navbar({ user, onLogout }: { user: User | null; onLogout: () => void }) {
   return (
     <header className="sticky top-0 z-40 border-b border-white/10 bg-slate-950/95 text-white backdrop-blur">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <nav className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
         <a href="#top" className="flex items-center gap-2 text-lg font-bold tracking-tight">
           <span aria-hidden="true" className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500 text-slate-950">P</span>
           {BRAND}
         </a>
         {user && (
-          <div className="flex items-center gap-2 sm:gap-6">
-            <div className="hidden items-center gap-5 text-sm font-medium text-slate-300 md:flex">
-              <a href="#inventory" className="hover:text-white">Inventory</a>
-              {user.role === 'admin' && <a href="#manage" className="hover:text-white">Manage</a>}
+          <>
+            {/* On small screens the links wrap onto their own row below the brand. */}
+            <div className="order-last flex w-full items-center gap-5 overflow-x-auto text-sm font-medium text-slate-300 md:order-none md:w-auto">
+              <a href="#inventory" className="rounded hover:text-white focus-visible:outline-2 focus-visible:outline-amber-400">Inventory</a>
+              <a href="#orders" className="rounded hover:text-white focus-visible:outline-2 focus-visible:outline-amber-400">My orders</a>
+              {user.role === 'admin' && <a href="#manage" className="rounded hover:text-white focus-visible:outline-2 focus-visible:outline-amber-400">Manage</a>}
             </div>
             <div className="flex items-center gap-3">
               <div className="hidden text-right leading-tight sm:block">
@@ -28,7 +30,7 @@ export function Navbar({ user, onLogout }: { user: User | null; onLogout: () => 
                 Log out
               </button>
             </div>
-          </div>
+          </>
         )}
       </nav>
     </header>
