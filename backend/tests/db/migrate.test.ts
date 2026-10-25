@@ -10,7 +10,7 @@ describe('database migration', () => {
   beforeAll(async () => {
     pool = createPool(process.env['DATABASE_URL']!);
     // Start from an empty schema so we prove migrate() creates everything.
-    await pool.query('DROP TABLE IF EXISTS vehicles, users');
+    await pool.query('DROP TABLE IF EXISTS reviews, vehicles, users');
     await migrate(pool);
   });
 
@@ -84,5 +84,49 @@ describe('database migration', () => {
     const insert = `INSERT INTO users (email, password_hash) VALUES ('dup@example.com', 'hash')`;
     await pool.query(insert);
     await expect(pool.query(insert)).rejects.toThrow(/duplicate key/);
+  });
+
+  describe('reviews table', () => {
+    /** Inserts a fresh user and vehicle and returns their ids. */
+    async function userAndVehicle(): Promise<{ userId: string; vehicleId: string }> {
+      const user = await pool.query<{ id: string }>(
+        `INSERT INTO users (email, password_hash) VALUES (gen_random_uuid() || '@example.com', 'hash') RETURNING id`,
+      );
+      const vehicle = await pool.query<{ id: string }>(
+        `INSERT INTO vehicles (make, model, category, price, quantity)
+         VALUES ('Kia', 'Seltos', 'SUV', 1, 1) RETURNING id`,
+      );
+      return { userId: user.rows[0]!.id, vehicleId: vehicle.rows[0]!.id };
+    }
+
+    const insertReview = (userId: string, vehicleId: string, rating: number) =>
+      pool.query(
+        `INSERT INTO reviews (user_id, vehicle_id, rating, comment) VALUES ($1, $2, $3, 'text')`,
+        [userId, vehicleId, rating],
+      );
+
+    it('creates the reviews table', async () => {
+      expect(await columnsOf('reviews')).toEqual(
+        ['comment', 'created_at', 'id', 'rating', 'user_id', 'vehicle_id'],
+      );
+    });
+
+    it.each([0, 6])('rejects a rating of %i', async (rating) => {
+      const { userId, vehicleId } = await userAndVehicle();
+      await expect(insertReview(userId, vehicleId, rating)).rejects.toThrow(/check constraint/);
+    });
+
+    it('allows only one review per user and vehicle', async () => {
+      const { userId, vehicleId } = await userAndVehicle();
+      await insertReview(userId, vehicleId, 5);
+      await expect(insertReview(userId, vehicleId, 4)).rejects.toThrow(/duplicate key/);
+    });
+
+    it('rejects a review for a vehicle that does not exist', async () => {
+      const { userId } = await userAndVehicle();
+      await expect(
+        insertReview(userId, '00000000-0000-0000-0000-000000000000', 5),
+      ).rejects.toThrow(/foreign key/);
+    });
   });
 });

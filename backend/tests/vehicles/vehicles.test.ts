@@ -63,7 +63,10 @@ describe('Vehicles API', () => {
         .send(corolla);
 
       expect(response.status).toBe(201);
-      expect(response.body).toEqual({ vehicle: { id: expect.any(String), ...corolla } });
+      // A new vehicle has no reviews yet.
+      expect(response.body).toEqual({
+        vehicle: { id: expect.any(String), ...corolla, averageRating: null, reviewCount: 0 },
+      });
     });
 
     it('returns 403 for a non-admin user', async () => {
