@@ -1,4 +1,4 @@
-import { useEffect, useId, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 
 /** Shared class names so buttons and inputs look the same everywhere. */
 export const ui = {
@@ -42,9 +42,20 @@ export function Spinner({ className = 'h-4 w-4' }: { className?: string }) {
   return <span aria-hidden="true" className={`${className} inline-block animate-spin rounded-full border-2 border-current border-r-transparent`} />;
 }
 
-/** An accessible modal dialog: labelled by its title, closes on Escape or backdrop click. */
+/**
+ * An accessible modal dialog: labelled by its title, closes on Escape or
+ * backdrop click. Focus moves into it on open (unless a field inside has
+ * already taken it) and returns to the previously focused element on close.
+ */
 export function Dialog({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   const titleId = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const panel = panelRef.current;
+    if (panel && !panel.contains(document.activeElement)) panel.focus();
+    return () => previous?.focus();
+  }, []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -54,10 +65,12 @@ export function Dialog({ title, onClose, children, wide = false }: { title: stri
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" onMouseDown={onClose}>
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} rounded-2xl bg-white p-6 shadow-2xl`}
+        tabIndex={-1}
+        className={`max-h-[90vh] w-full overflow-y-auto ${wide ? 'max-w-3xl' : 'max-w-lg'} rounded-2xl bg-white p-6 shadow-2xl outline-none`}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <h2 id={titleId} className="mb-4 text-xl font-bold text-slate-900">{title}</h2>

@@ -93,7 +93,8 @@ describe('compare cars', () => {
     expect(cells('Make')).toEqual(['Hyundai', 'Maruti Suzuki', 'Volkswagen']);
     expect(cells('Model')).toEqual(['Creta', 'Swift', 'Virtus']);
     expect(cells('Category')).toEqual(['SUV', 'Hatchback', 'Sedan']);
-    expect(cells('Price')).toEqual(['₹15,00,000', '₹8,00,000', '₹15,00,000']);
+    // The cheapest vehicle carries a visible "Lowest price" badge (see compare.test.tsx).
+    expect(cells('Price')).toEqual(['₹15,00,000', '₹8,00,000Lowest price', '₹15,00,000']);
     expect(cells('Stock')).toEqual(['6 in stock', '10 in stock', 'Out of stock']);
   });
 

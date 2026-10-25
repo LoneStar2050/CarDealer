@@ -1,8 +1,45 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { Vehicle } from '../api';
-import { formatRupees } from '../format';
+import { formatDate, formatRupees, plural } from '../format';
 import { MAX_COMPARE } from '../hooks/useCompare';
 import { Dialog, ui } from './ui';
+
+const nameOf = (v: Vehicle) => `${v.make} ${v.model}`;
+/** Shown wherever a value is missing. */
+const MISSING = '—';
+
+interface CompareRow {
+  label: string;
+  value: (v: Vehicle) => ReactNode;
+  /** Which vehicles win this row, if the row has a "best" value. */
+  best?: (vehicles: Vehicle[]) => Set<string>;
+  /** Visible note added to the winning cells. */
+  bestNote?: string;
+}
+
+/** Ids of the vehicles with the extreme value, only when not all values are equal. */
+function extremes(vehicles: Vehicle[], valueOf: (v: Vehicle) => number | null, pick: 'min' | 'max'): Set<string> {
+  const known = vehicles.filter((v) => valueOf(v) !== null);
+  const values = known.map((v) => valueOf(v)!);
+  if (values.length === 0 || (values.length === vehicles.length && Math.min(...values) === Math.max(...values))) return new Set();
+  const target = pick === 'min' ? Math.min(...values) : Math.max(...values);
+  return new Set(known.filter((v) => valueOf(v) === target).map((v) => v.id));
+}
+
+const ROWS: CompareRow[] = [
+  { label: 'Make', value: (v) => v.make || MISSING },
+  { label: 'Model', value: (v) => v.model || MISSING },
+  { label: 'Category', value: (v) => v.category || MISSING },
+  { label: 'Price', value: (v) => formatRupees(v.price), best: (vs) => extremes(vs, (v) => v.price, 'min'), bestNote: 'Lowest price' },
+  { label: 'Stock', value: (v) => (v.quantity === 0 ? 'Out of stock' : `${v.quantity} in stock`) },
+  { label: 'Availability', value: (v) => (v.quantity > 0 ? 'In stock' : 'Out of stock') },
+  {
+    label: 'Rating',
+    value: (v) => (v.averageRating === null ? 'No reviews yet' : `${v.averageRating} / 5 (${plural(v.reviewCount, 'review')})`),
+    best: (vs) => extremes(vs, (v) => v.averageRating, 'max'),
+  },
+  { label: 'Listed', value: (v) => (v.createdAt ? formatDate(v.createdAt) : MISSING) },
+];
 
 /** Sticky bar listing the vehicles chosen for comparison, plus the comparison dialog. */
 export function CompareTray({ vehicles, onRemove, onClear }: {
@@ -12,14 +49,12 @@ export function CompareTray({ vehicles, onRemove, onClear }: {
 }) {
   const [open, setOpen] = useState(false);
   if (vehicles.length === 0) return null;
-  const nameOf = (v: Vehicle) => `${v.make} ${v.model}`;
-  const rows: [string, (v: Vehicle) => string][] = [
-    ['Make', (v) => v.make],
-    ['Model', (v) => v.model],
-    ['Category', (v) => v.category],
-    ['Price', (v) => formatRupees(v.price)],
-    ['Stock', (v) => (v.quantity === 0 ? 'Out of stock' : `${v.quantity} in stock`)],
-  ];
+
+  /** Removing from the dialog closes it once there is nothing left to compare. */
+  function removeFromDialog(id: string) {
+    if (vehicles.length - 1 < 2) setOpen(false);
+    onRemove(id);
+  }
 
   return (
     <>
@@ -52,13 +87,43 @@ export function CompareTray({ vehicles, onRemove, onClear }: {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map(([label, value]) => (
-                  <tr key={label}>
-                    <th scope="row" className="py-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</th>
-                    {vehicles.map((v) => <td key={v.id} className="px-4 py-3 font-medium text-slate-800">{value(v)}</td>)}
-                  </tr>
-                ))}
+                {ROWS.map((row) => {
+                  const winners = row.best?.(vehicles) ?? new Set<string>();
+                  return (
+                    <tr key={row.label}>
+                      <th scope="row" className="py-3 pr-4 text-xs font-semibold uppercase tracking-wide text-slate-400">{row.label}</th>
+                      {vehicles.map((v) => {
+                        const best = winners.has(v.id);
+                        return (
+                          <td
+                            key={v.id}
+                            data-best={best ? 'true' : undefined}
+                            title={best ? (row.bestNote ?? `Best ${row.label.toLowerCase()}`) : undefined}
+                            className={`px-4 py-3 font-medium ${best ? 'bg-emerald-50 text-emerald-800' : 'text-slate-800'}`}
+                          >
+                            {row.value(v)}
+                            {best && row.bestNote && (
+                              <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold">{row.bestNote}</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
+              <tfoot>
+                <tr className="border-t border-slate-200">
+                  <th scope="row" className="py-3 pr-4"><span className="sr-only">Actions</span></th>
+                  {vehicles.map((v) => (
+                    <td key={v.id} className="px-4 py-3">
+                      <button type="button" aria-label={`Remove ${nameOf(v)} from comparison`} className={`${ui.button} ${ui.secondary} px-3`} onClick={() => removeFromDialog(v.id)}>
+                        Remove
+                      </button>
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
             </table>
           </div>
           <div className="mt-6 flex justify-end">
